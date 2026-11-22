@@ -20,6 +20,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Content-Type', 'application/json');
   }
 
+  // Anti-CSRF defense-in-depth headers
+  headers.set('X-Requested-With', 'XMLHttpRequest');
+  headers.set('X-CSRF-Protection', '1');
+
   const response = await fetch(url, {
     ...options,
     headers,

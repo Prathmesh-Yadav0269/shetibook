@@ -85,7 +85,7 @@ erDiagram
 - Stores primary user identity.
 - `phone_number`: Unique, normalized 10-digit Indian mobile number.
 - `password_hash`: OWASP compliant Argon2id hash.
-- `recovery_code_hash`: SHA-256 hash of the 8-character recovery code. Plaintext code is never persisted.
+- `recovery_code_hash`: Keyed Argon2id hash with server-side pepper (`RECOVERY_PEPPER`) of the 128-bit recovery secret. Plaintext code is never persisted.
 - `status`: `'active'`, `'suspended'`, or `'deactivated'`.
 
 ### 2.2 `farming_groups`
@@ -98,6 +98,7 @@ erDiagram
 - `role`: Restricted to `'owner'` or `'member'`.
 - `status`: `'active'` or `'removed'`.
 - Unique partial index `idx_group_members_unique_active` prevents duplicate active memberships for a user in the same group.
+- Unique partial index `idx_group_members_single_active_owner` enforces at the database level that a group cannot have more than one active owner (`WHERE role = 'owner' AND status = 'active'`).
 
 ### 2.4 `sessions`
 - Database-backed user sessions.
@@ -111,14 +112,20 @@ erDiagram
 - `intended_phone`: Optional phone restriction.
 - `status`: `'pending'`, `'accepted'`, `'revoked'`, `'expired'`.
 - `expires_at`: ISO timestamp (7 days validity).
+- Atomic single-consumer consumption via conditional state updates (`WHERE status = 'pending' AND expires_at > now`).
 
 ### 2.6 `audit_logs`
-- Tamper-resistant append-only operational log for security and identity events (`USER_REGISTERED`, `USER_LOGIN`, `USER_LOGOUT`, `PASSWORD_RECOVERED`, `GROUP_CREATED`, `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `MEMBER_REMOVED`, `GROUP_DEACTIVATED`).
+- Immutability enforced by database triggers (`trg_audit_logs_no_update`, `trg_audit_logs_no_delete`).
+- Any attempt to update or delete an audit record causes an immediate SQLite transaction abort (`RAISE(ABORT)`).
+- Operational log for security and identity events (`USER_REGISTERED`, `USER_LOGIN`, `USER_LOGOUT`, `PASSWORD_RECOVERED`, `GROUP_CREATED`, `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `MEMBER_REMOVED`, `GROUP_DEACTIVATED`).
 - Never logs plaintext passwords, recovery codes, or raw tokens.
 
 ## 3. Migration System
 
 - Migrations are version-controlled SQL files located in `server/src/database/migrations/`.
 - Tracked via `schema_migrations` table.
-- Deterministic lexicographical execution order (e.g. `001_initial_schema.sql`).
+- Applied via `client.executeMultiple(sqlRaw)` to natively support complex multi-statement migrations including triggers with internal semicolons.
+- Lexicographical execution order:
+  - `001_initial_schema.sql`: Core relational tables, foreign keys, and indexes.
+  - `002_owner_constraint_and_audit.sql`: Single active owner partial unique index and audit log immutable triggers.
 - Automatically verified and applied at backend startup and before automated tests.

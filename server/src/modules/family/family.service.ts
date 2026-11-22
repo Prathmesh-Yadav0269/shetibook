@@ -11,7 +11,7 @@ export class FamilyService {
     const membershipId = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    // Use transaction / sequential execution
+    // Transactional creation: group + single active owner membership + audit log
     await client.batch([
       {
         sql: `
@@ -44,7 +44,7 @@ export class FamilyService {
       },
     ]);
 
-    logger.info('Farming group created', { groupId, ownerId });
+    logger.info('Farming group created with validated owner', { groupId, ownerId });
 
     return {
       id: groupId,
@@ -114,6 +114,16 @@ export class FamilyService {
       `,
       args: [groupId],
     });
+
+    // Ensure the active owner membership matches farming_groups.owner_id
+    const ownerMember = membersResult.rows.find(m => m.role === 'owner');
+    if (!ownerMember || String(ownerMember.user_id) !== String(group.owner_id)) {
+      logger.error('Data integrity inconsistency: active owner does not match group owner_id', {
+        groupId,
+        groupOwnerId: group.owner_id,
+        memberOwnerId: ownerMember?.user_id,
+      });
+    }
 
     // Fetch pending invitations (if owner)
     let pendingInvitations: Array<Record<string, unknown>> = [];
@@ -250,6 +260,7 @@ export class FamilyService {
     const client = getDatabaseClient();
     const tokenHash = hashToken(rawToken);
 
+    // Initial lookup to verify invitation existence
     const result = await client.execute({
       sql: `
         SELECT gi.id, gi.group_id, gi.status, gi.expires_at, gi.intended_phone, fg.name as group_name
@@ -266,19 +277,7 @@ export class FamilyService {
 
     const inv = result.rows[0];
 
-    if (inv.status === 'accepted') {
-      throw new AppError('This invitation has already been used.', 400, 'INVITATION_ALREADY_USED');
-    }
-
-    if (inv.status === 'revoked') {
-      throw new AppError('This invitation has been revoked by the group owner.', 400, 'INVITATION_REVOKED');
-    }
-
-    const isExpired = new Date(String(inv.expires_at)).getTime() <= Date.now();
-    if (isExpired || inv.status === 'expired') {
-      throw new AppError('This invitation has expired.', 400, 'INVITATION_EXPIRED');
-    }
-
+    // Phone restriction validation
     if (inv.intended_phone && String(inv.intended_phone) !== userPhone) {
       throw new AppError('This invitation was sent to a different phone number.', 403, 'PHONE_MISMATCH');
     }
@@ -287,7 +286,7 @@ export class FamilyService {
 
     // Check if user is already an active member of this group
     const existingActive = await client.execute({
-      sql: 'SELECT id, role FROM group_members WHERE group_id = ? AND user_id = ? AND status = \'active\'',
+      sql: 'SELECT id FROM group_members WHERE group_id = ? AND user_id = ? AND status = \'active\'',
       args: [groupId, userId],
     });
 
@@ -298,24 +297,48 @@ export class FamilyService {
     const now = new Date().toISOString();
     const membershipId = crypto.randomUUID();
 
-    // Batch acceptance and member insert
-    await client.batch([
-      {
+    // ATOMIC CONDITIONAL STATE TRANSITION using LibSQL write transaction
+    const txn = await client.transaction('write');
+
+    try {
+      // 1. Atomic state change: Require status = 'pending' and expires_at > now
+      const updateResult = await txn.execute({
         sql: `
           UPDATE group_invitations
           SET status = 'accepted', accepted_at = ?, accepted_by = ?
-          WHERE id = ?
+          WHERE id = ? AND status = 'pending' AND expires_at > ?
         `,
-        args: [now, userId, String(inv.id)],
-      },
-      {
+        args: [now, userId, String(inv.id), now],
+      });
+
+      // Exactly one concurrent consumer must succeed
+      if (updateResult.rowsAffected !== 1) {
+        await txn.rollback();
+        throw new AppError('This invitation has already been used, revoked, or has expired.', 400, 'INVITATION_ALREADY_USED');
+      }
+
+      // 2. Prevent duplicate active membership inside transaction
+      const doubleCheck = await txn.execute({
+        sql: 'SELECT id FROM group_members WHERE group_id = ? AND user_id = ? AND status = \'active\'',
+        args: [groupId, userId],
+      });
+
+      if (doubleCheck.rows.length > 0) {
+        await txn.rollback();
+        throw new AppError('You are already an active member of this family group.', 409, 'ALREADY_MEMBER');
+      }
+
+      // 3. Insert membership
+      await txn.execute({
         sql: `
           INSERT INTO group_members (id, group_id, user_id, role, status, joined_at)
           VALUES (?, ?, ?, 'member', 'active', ?)
         `,
         args: [membershipId, groupId, userId, now],
-      },
-      {
+      });
+
+      // 4. Audit log
+      await txn.execute({
         sql: `
           INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, metadata, ip_address, user_agent, created_at)
           VALUES (?, ?, 'INVITATION_ACCEPTED', 'group_membership', ?, ?, ?, ?, ?)
@@ -329,10 +352,20 @@ export class FamilyService {
           userAgent || null,
           now,
         ],
-      },
-    ]);
+      });
 
-    logger.info('Invitation accepted and member added', { userId, groupId });
+      // Commit the atomic transaction
+      await txn.commit();
+    } catch (err) {
+      try {
+        await txn.rollback();
+      } catch {}
+      throw err;
+    } finally {
+      txn.close();
+    }
+
+    logger.info('Invitation atomically accepted and member added', { userId, groupId });
 
     return {
       success: true,

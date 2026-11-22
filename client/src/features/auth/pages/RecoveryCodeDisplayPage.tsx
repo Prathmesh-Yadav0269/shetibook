@@ -86,9 +86,9 @@ export const RecoveryCodeDisplayPage: React.FC = () => {
       {/* Code Display Box */}
       <div className="p-4 bg-slate-900 text-white rounded-xl text-center space-y-3">
         <span className="text-xs font-medium text-slate-400 uppercase tracking-wider block">
-          तुमचा वन-टाइम रिकव्हरी कोड
+          तुमचा वन-टाइम १२८-बिट रिकव्हरी कोड
         </span>
-        <div className="font-mono text-2xl sm:text-3xl font-extrabold tracking-widest text-emerald-400 select-all">
+        <div className="font-mono text-sm sm:text-base md:text-lg font-bold tracking-wider text-emerald-400 select-all break-all px-2 py-1 bg-slate-950/60 rounded">
           {state.recoveryCode}
         </div>
         <Button

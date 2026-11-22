@@ -6,17 +6,27 @@ ShetiBook is a mobile-first, Marathi-first family-based farm management applicat
 
 ---
 
-## 🌾 Phase 1 Scope: Foundation & Core Infrastructure
+## 🗺️ Approved Five-Phase Product Roadmap
 
-Phase 1 establishes the foundational architecture and security infrastructure for ShetiBook:
-- **Project Structure**: Clean monorepo containing `client` and `server`.
-- **Database Architecture**: Turso-compatible SQLite database adapter with deterministic migration tracking and foreign-key enforcement.
-- **Authentication**: Phone Number + Argon2id Password + One-Time Secure Recovery Code (zero SMS/email dependencies).
-- **Session Management**: Secure, database-backed HTTP-only cookie sessions with SHA-256 token hashing and revocation.
-- **Family Group Management**: Group creation, owner/member roles, invitation code generation (SHA-256 hashed), single-use acceptance, member removal, and complete cross-group isolation.
-- **Localization**: Full Marathi (Devanagari) default interface with seamless English bilingual support.
+ShetiBook is developed under a strict, phased engineering lifecycle:
 
-*(Note: Farm plots, crop management, farm activities, expenses, harvest, and sales records are explicitly scheduled for subsequent phases).*
+- **Phase 1: Foundation & Core Infrastructure** *(Current Phase)*
+  - Monorepo repository architecture, TypeScript standards, automated testing.
+  - Relational database schema migrations (Turso / SQLite) with foreign-key enforcement.
+  - Secure phone authentication with Argon2id password hashing and 128-bit keyed recovery secrets.
+  - Database-backed HTTP-only session management and CSRF defense-in-depth.
+  - Family group collaboration with atomic single-use invitation consumption, single active owner constraint, and database trigger immutability for audit logs.
+  - Full Marathi (Devanagari) default interface with seamless bilingual English support.
+- **Phase 2: Farm & Agricultural Management**
+  - Farms, plots, crops, intercropping, and agricultural activities.
+- **Phase 3: Financial & Business Management**
+  - Expenses, cost allocations, payments, harvests, and sales.
+- **Phase 4: Intelligence & Application Experience**
+  - Dashboard, reports, notifications, offline synchronization, and Progressive Web App (PWA).
+- **Phase 5: Quality Assurance & Production Release**
+  - Integration, security hardening, performance tuning, deployment, backup/recovery, and handover.
+
+*(Strict project boundary: Agricultural and financial features will begin exclusively in Phase 2 and Phase 3 upon explicit approval).*
 
 ---
 
@@ -146,10 +156,13 @@ npm run build
 
 ## 🔒 Security Summary
 
-1. **Argon2id Password Hashing**: Hashed using OWASP recommended parameters (19 MiB memory cost, 2 iterations, 1 parallelism).
-2. **One-Time Recovery Code**: 8-character high-entropy code formatted as `XXXX-XXXX`. Displayed strictly once upon registration/recovery. Stored in database as a SHA-256 hash.
-3. **Database-Backed Sessions**: Session tokens are cryptographically random (32 bytes hex) and stored in the database only as SHA-256 hashes. Sent via secure `HttpOnly`, `SameSite=Lax` cookies.
-4. **Group Isolation**: Every protected group route rigorously verifies active user membership in the requested group ID.
+1. **Argon2id Password Hashing**: Hashed using OWASP-recommended parameters (19 MiB memory cost, 2 iterations, 1 parallelism).
+2. **128-Bit Recovery Secret**: Cryptographically generated 16-byte random secret (32 hex characters, `XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX`). Stored strictly as a keyed Argon2id hash using a server-side pepper. Displayed only once. Old secret and all active sessions are revoked immediately upon recovery. Constant-time dummy verification prevents account enumeration.
+3. **Atomic Invitation Acceptance**: Concurrently safe invitation claiming using conditional write transactions (`UPDATE ... WHERE status = 'pending' AND expires_at > now`) asserting `rowsAffected === 1`. Only one concurrent actor can consume an invitation.
+4. **Single Active Owner Database Constraint**: Partial unique index (`idx_group_members_single_active_owner`) enforces at the database level that a group cannot have more than one active owner.
+5. **Database-Level Audit Immutability**: SQLite triggers (`trg_audit_logs_no_update` and `trg_audit_logs_no_delete`) enforce that audit logs cannot be updated or deleted, providing true database-level immutability beyond mere application-level convention.
+6. **CSRF & Origin Protection**: Multi-layered defense validating request origin/referer and requiring custom anti-CSRF headers (`X-Requested-With`, `X-CSRF-Protection`) on state-changing operations.
+7. **Cross-Site Cookie Architecture**: Full documentation and configuration for Netlify frontend (`.netlify.app`) and Render backend (`.onrender.com`), supporting both same-origin reverse-proxying (recommended) and partition-ready `SameSite=None; Secure` cookies.
 
 ---
 

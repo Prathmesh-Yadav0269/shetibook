@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { config } from './config/index.js';
 import { globalLimiter } from './middleware/rateLimiter.js';
 import { errorHandler } from './middleware/error.middleware.js';
+import { csrfProtection } from './middleware/csrf.middleware.js';
 import { authRouter } from './modules/auth/index.js';
 import { usersRouter } from './modules/users/users.routes.js';
 import { familyRouter } from './modules/family/family.routes.js';
@@ -12,7 +13,7 @@ import { getDatabaseClient } from './database/client.js';
 
 export const app = express();
 
-// Trust proxy if in production
+// Trust proxy in production (e.g. Render, reverse proxies)
 if (config.isProduction) {
   app.set('trust proxy', 1);
 }
@@ -26,7 +27,7 @@ app.use(
     origin: config.CLIENT_ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Protection'],
   })
 );
 
@@ -34,7 +35,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(globalLimiter);
 
-// Health check endpoint - without exposing credentials
+// Health check endpoint - public without exposing credentials
 app.get('/health', async (_req, res) => {
   let dbStatus = 'disconnected';
   try {
@@ -55,6 +56,9 @@ app.get('/health', async (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// CSRF & Origin protection on all mutating API requests
+app.use(csrfProtection);
 
 // API v1 Modules
 app.use('/api/v1/auth', authRouter);

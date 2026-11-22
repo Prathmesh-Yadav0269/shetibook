@@ -46,7 +46,10 @@ NODE_ENV=development
 TURSO_DATABASE_URL=file:./data/shetibook.db
 TURSO_AUTH_TOKEN=
 SESSION_SECRET=shetibook-default-dev-secret-key-32b
+RECOVERY_PEPPER=shetibook-default-recovery-pepper-32b
 CLIENT_ORIGIN=http://localhost:3000
+COOKIE_SAME_SITE=lax
+COOKIE_SECURE=false
 ```
 
 *(Note: If you have a remote Turso database, set `TURSO_DATABASE_URL=libsql://your-db.turso.io` and `TURSO_AUTH_TOKEN=your-token`. Otherwise, leave default local SQLite file).*

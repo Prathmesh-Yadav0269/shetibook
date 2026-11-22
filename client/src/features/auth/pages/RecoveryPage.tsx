@@ -14,7 +14,13 @@ import { KeyRound, Lock, Phone } from 'lucide-react';
 const recoveryFormSchema = z
   .object({
     phoneNumber: z.string().min(10, '१० अंकी मोबाईल नंबर आवश्यक आहे'),
-    recoveryCode: z.string().min(4, 'रिकव्हरी कोड आवश्यक आहे'),
+    recoveryCode: z
+      .string()
+      .min(1, 'रिकव्हरी कोड आवश्यक आहे')
+      .refine(
+        (val) => val.replace(/[^a-fA-F0-9]/g, '').length === 32,
+        { message: 'अवैध रिकव्हरी कोड (३२ अक्षरी हेक्स की आवश्यक आहे)' }
+      ),
     newPassword: z
       .string()
       .min(8, 'पासवर्ड किमान ८ अक्षरांचा असावा')
@@ -96,7 +102,7 @@ export const RecoveryPage: React.FC = () => {
         <div className="relative">
           <Input
             label={t('auth.recoveryCode')}
-            placeholder="उदा. 4A9K-7M2P"
+            placeholder="उदा. A1B2-C3D4-E5F6-..."
             type="text"
             error={errors.recoveryCode?.message}
             {...register('recoveryCode')}

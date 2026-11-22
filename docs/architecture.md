@@ -14,6 +14,14 @@ flowchart TD
     API -->|Prepared SQL Statements\nTransactions| DB
 ```
 
+### Approved Five-Phase Roadmap
+
+- **Phase 1: Foundation & Core Infrastructure** *(Current)*: Monorepo, database migrations, phone + Argon2id authentication, 128-bit keyed recovery secrets, HTTP-only sessions, family groups with single active owner and atomic invitation consumption, audit log triggers, and Marathi/English bilingual support.
+- **Phase 2: Farm & Agricultural Management**: Farms, plots, crops, intercropping, and activities.
+- **Phase 3: Financial & Business Management**: Expenses, allocations, payments, harvests, and sales.
+- **Phase 4: Intelligence & Application Experience**: Dashboard, reports, notifications, offline synchronization, and PWA.
+- **Phase 5: Quality Assurance & Production Release**: Integration, security, performance, deployment, backup/recovery, and handover.
+
 ## 2. Frontend Architecture
 
 - **Pattern**: Feature-based architecture (`features/auth`, `features/family`).

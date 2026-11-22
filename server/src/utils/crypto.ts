@@ -24,23 +24,70 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
 }
 
 /**
- * Generates an 8-character recovery code formatted as XXXX-XXXX using alphanumeric chars
+ * Server-side pepper for keyed recovery secret hashing
  */
-export function generateRecoveryCode(): string {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // exclude ambiguous 0,1,I,O
-  const bytes = crypto.randomBytes(8);
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    code += chars[bytes[i] % chars.length];
-  }
-  return `${code.slice(0, 4)}-${code.slice(4)}`;
+function getRecoveryPepper(): string {
+  return process.env.RECOVERY_PEPPER || process.env.SESSION_SECRET || 'shetibook-default-recovery-pepper-32b';
 }
 
 /**
- * Hashes high-entropy tokens or recovery codes using SHA-256 for secure database storage
+ * Generates a 128-bit cryptographically secure recovery secret.
+ * 16 random bytes = 128 bits of true entropy.
+ * Formatted as 8 blocks of 4 hex digits: XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+ */
+export function generateRecoverySecret(): string {
+  const hex = crypto.randomBytes(16).toString('hex').toUpperCase();
+  const chunks = hex.match(/.{1,4}/g);
+  return chunks ? chunks.join('-') : hex;
+}
+
+/**
+ * Normalizes recovery secret by stripping hyphens, spaces, and non-hex characters
+ */
+export function normalizeRecoverySecret(raw: string): string {
+  return raw.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+}
+
+/**
+ * Keyed Argon2id hashing of 128-bit recovery secret with server-side pepper
+ */
+export async function hashRecoverySecret(secret: string): Promise<string> {
+  const normalized = normalizeRecoverySecret(secret);
+  const pepper = getRecoveryPepper();
+  const keyedPayload = crypto.createHmac('sha256', pepper).update(normalized).digest('hex');
+  return argon2.hash(keyedPayload, ARGON2_OPTIONS);
+}
+
+/**
+ * Verifies recovery secret against stored Argon2id hash using server-side pepper
+ */
+export async function verifyRecoverySecret(hash: string, secret: string): Promise<boolean> {
+  try {
+    const normalized = normalizeRecoverySecret(secret);
+    const pepper = getRecoveryPepper();
+    const keyedPayload = crypto.createHmac('sha256', pepper).update(normalized).digest('hex');
+    return await argon2.verify(hash, keyedPayload);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Generates a dummy hash for constant-time mitigation when phone does not exist
+ */
+let dummyHashCache: string | null = null;
+export async function getDummyArgon2Hash(): Promise<string> {
+  if (!dummyHashCache) {
+    dummyHashCache = await hashPassword('dummy-timing-mitigation-password-secret');
+  }
+  return dummyHashCache;
+}
+
+/**
+ * Hashes high-entropy tokens using SHA-256 for secure database storage
  */
 export function hashToken(token: string): string {
-  return crypto.createHash('sha256').update(token.trim().toUpperCase()).digest('hex');
+  return crypto.createHash('sha256').update(token.trim()).digest('hex');
 }
 
 /**

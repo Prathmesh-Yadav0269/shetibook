@@ -41,24 +41,8 @@ export async function runMigrations(customUrl?: string, customToken?: string) {
     const sqlPath = path.join(migrationsDir, file);
     const sqlRaw = fs.readFileSync(sqlPath, 'utf-8');
 
-    // Remove single line SQL comments
-    const sqlClean = sqlRaw
-      .split('\n')
-      .map(line => {
-        const trimmed = line.trim();
-        return trimmed.startsWith('--') ? '' : line;
-      })
-      .join('\n');
-
-    // Split SQL statements by semicolon, avoiding empty statements
-    const statements = sqlClean
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    for (const stmt of statements) {
-      await client.execute(stmt);
-    }
+    // Execute migration atomically using executeMultiple
+    await client.executeMultiple(sqlRaw);
 
     await client.execute({
       sql: 'INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?);',

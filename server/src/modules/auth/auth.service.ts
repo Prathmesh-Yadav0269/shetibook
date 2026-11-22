@@ -3,7 +3,10 @@ import { getDatabaseClient } from '../../database/client.js';
 import {
   hashPassword,
   verifyPassword,
-  generateRecoveryCode,
+  generateRecoverySecret,
+  hashRecoverySecret,
+  verifyRecoverySecret,
+  getDummyArgon2Hash,
   hashToken,
   generateSessionToken,
 } from '../../utils/crypto.js';
@@ -28,8 +31,11 @@ export class AuthService {
     const userId = crypto.randomUUID();
     const now = new Date().toISOString();
     const passwordHashed = await hashPassword(passwordPlain);
-    const recoveryCodePlain = generateRecoveryCode();
-    const recoveryCodeHashed = hashToken(recoveryCodePlain);
+    
+    // 128-bit cryptographically secure recovery secret
+    const recoverySecretPlain = generateRecoverySecret();
+    // Keyed Argon2id hash with server-side pepper
+    const recoverySecretHashed = await hashRecoverySecret(recoverySecretPlain);
 
     // Insert user
     await client.execute({
@@ -37,7 +43,7 @@ export class AuthService {
         INSERT INTO users (id, phone_number, password_hash, recovery_code_hash, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, 'active', ?, ?)
       `,
-      args: [userId, phoneNumber, passwordHashed, recoveryCodeHashed, now, now],
+      args: [userId, phoneNumber, passwordHashed, recoverySecretHashed, now, now],
     });
 
     // Audit log
@@ -57,12 +63,12 @@ export class AuthService {
       ],
     });
 
-    logger.info('User registered successfully', { userId });
+    logger.info('User registered successfully with 128-bit recovery secret', { userId });
 
     return {
       userId,
       phoneNumber,
-      recoveryCode: recoveryCodePlain, // shown ONCE to user
+      recoveryCode: recoverySecretPlain, // Displayed strictly ONCE to user
     };
   }
 
@@ -75,7 +81,9 @@ export class AuthService {
     });
 
     if (userResult.rows.length === 0) {
-      // Constant-time-like generic error
+      // Execute dummy Argon2id verification to normalize response timing
+      const dummyHash = await getDummyArgon2Hash();
+      await verifyPassword(dummyHash, passwordPlain);
       throw new AppError('Invalid phone number or password.', 401, 'INVALID_CREDENTIALS');
     }
 
@@ -167,22 +175,26 @@ export class AuthService {
       args: [phoneNumber],
     });
 
-    // Generic error to prevent enumeration
+    // Timing-safe account enumeration defense
     if (userResult.rows.length === 0) {
-      throw new AppError('Invalid recovery code or phone number.', 400, 'INVALID_RECOVERY_CREDENTIALS');
+      const dummyHash = await getDummyArgon2Hash();
+      await verifyPassword(dummyHash, recoveryCodePlain);
+      throw new AppError('Invalid recovery credentials.', 400, 'INVALID_RECOVERY_CREDENTIALS');
     }
 
     const user = userResult.rows[0];
-    const suppliedCodeHash = hashToken(recoveryCodePlain);
+    const validRecoverySecret = await verifyRecoverySecret(String(user.recovery_code_hash), recoveryCodePlain);
 
-    if (String(user.recovery_code_hash) !== suppliedCodeHash) {
-      throw new AppError('Invalid recovery code or phone number.', 400, 'INVALID_RECOVERY_CREDENTIALS');
+    if (!validRecoverySecret) {
+      throw new AppError('Invalid recovery credentials.', 400, 'INVALID_RECOVERY_CREDENTIALS');
     }
 
     const now = new Date().toISOString();
     const newPasswordHashed = await hashPassword(newPasswordPlain);
-    const newRecoveryCodePlain = generateRecoveryCode();
-    const newRecoveryCodeHashed = hashToken(newRecoveryCodePlain);
+    
+    // Generate replacement 128-bit recovery secret
+    const newRecoverySecretPlain = generateRecoverySecret();
+    const newRecoverySecretHashed = await hashRecoverySecret(newRecoverySecretPlain);
 
     // Invalidate all existing sessions for this user
     await client.execute({
@@ -190,14 +202,14 @@ export class AuthService {
       args: [now, String(user.id)],
     });
 
-    // Update password and replace recovery code
+    // Update password and replace recovery code with new Argon2id hash
     await client.execute({
       sql: `
         UPDATE users
         SET password_hash = ?, recovery_code_hash = ?, updated_at = ?
         WHERE id = ?
       `,
-      args: [newPasswordHashed, newRecoveryCodeHashed, now, String(user.id)],
+      args: [newPasswordHashed, newRecoverySecretHashed, now, String(user.id)],
     });
 
     // Audit log
@@ -209,11 +221,11 @@ export class AuthService {
       args: [crypto.randomUUID(), String(user.id), String(user.id), ip || null, userAgent || null, now],
     });
 
-    logger.info('Password recovered successfully and old sessions invalidated', { userId: String(user.id) });
+    logger.info('Password recovered successfully, old sessions invalidated, new recovery secret issued', { userId: String(user.id) });
 
     return {
       success: true,
-      newRecoveryCode: newRecoveryCodePlain, // Shown ONCE to user
+      newRecoveryCode: newRecoverySecretPlain, // Displayed strictly ONCE to user
     };
   }
 

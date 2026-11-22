@@ -42,11 +42,11 @@ export class AuthController {
         req.headers['user-agent']
       );
 
-      // Set secure HTTP-only cookie
+      // Set secure HTTP-only cookie with configured SameSite & Secure policies
       res.cookie(config.SESSION_COOKIE_NAME, result.sessionToken, {
         httpOnly: true,
-        secure: config.isProduction,
-        sameSite: 'lax',
+        secure: config.COOKIE_SECURE,
+        sameSite: config.COOKIE_SAME_SITE,
         maxAge: config.SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
         path: '/',
       });
@@ -76,8 +76,8 @@ export class AuthController {
 
       res.clearCookie(config.SESSION_COOKIE_NAME, {
         httpOnly: true,
-        secure: config.isProduction,
-        sameSite: 'lax',
+        secure: config.COOKIE_SECURE,
+        sameSite: config.COOKIE_SAME_SITE,
         path: '/',
       });
 
@@ -123,8 +123,8 @@ export class AuthController {
       // Clear any session cookie since old sessions were invalidated
       res.clearCookie(config.SESSION_COOKIE_NAME, {
         httpOnly: true,
-        secure: config.isProduction,
-        sameSite: 'lax',
+        secure: config.COOKIE_SECURE,
+        sameSite: config.COOKIE_SAME_SITE,
         path: '/',
       });
 
