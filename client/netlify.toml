@@ -1,0 +1,17 @@
+# Netlify Configuration for ShetiBook Client SPA
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+# API Reverse Proxy (enables same-origin cookies, SameSite=Lax without third-party cookie blocking)
+[[redirects]]
+  from = "/api/*"
+  to = "https://shetibook-api.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# SPA client-side routing fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

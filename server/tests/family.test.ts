@@ -63,6 +63,20 @@ describe('ShetiBook Phase 1 - Family Management, Concurrency & DB Integrity Test
     expect(res.body.data.name).toBe('यादव कुटुंब शेती (Yadav Farm)');
     expect(res.body.data.role).toBe('owner');
     groupId = res.body.data.id;
+
+    // Verify farming_groups.owner_id matches exactly one active owner membership
+    const client = getDatabaseClient();
+    const groupRow = await client.execute({
+      sql: 'SELECT owner_id FROM farming_groups WHERE id = ?',
+      args: [groupId],
+    });
+    const ownerMembers = await client.execute({
+      sql: "SELECT user_id FROM group_members WHERE group_id = ? AND role = 'owner' AND status = 'active'",
+      args: [groupId],
+    });
+    expect(groupRow.rows[0].owner_id).toBe(ownerId);
+    expect(ownerMembers.rows.length).toBe(1);
+    expect(ownerMembers.rows[0].user_id).toBe(ownerId);
   });
 
   it('2. Enforces database partial unique index: rejects second active owner for same group', async () => {

@@ -4,6 +4,16 @@ dotenv.config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+// In production, strictly enforce cryptographic secrets to prevent silent default usage
+if (isProduction) {
+  if (!process.env.RECOVERY_PEPPER) {
+    throw new Error('Fatal: RECOVERY_PEPPER environment variable is required in production.');
+  }
+  if (!process.env.SESSION_SECRET) {
+    throw new Error('Fatal: SESSION_SECRET environment variable is required in production.');
+  }
+}
+
 export const config = {
   PORT: parseInt(process.env.PORT || '5000', 10),
   NODE_ENV: process.env.NODE_ENV || 'development',

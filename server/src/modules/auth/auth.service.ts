@@ -196,30 +196,40 @@ export class AuthService {
     const newRecoverySecretPlain = generateRecoverySecret();
     const newRecoverySecretHashed = await hashRecoverySecret(newRecoverySecretPlain);
 
-    // Invalidate all existing sessions for this user
-    await client.execute({
-      sql: 'UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL',
-      args: [now, String(user.id)],
-    });
+    // ATOMIC: Invalidate sessions, update password & recovery secret, and log audit in single write transaction
+    const txn = await client.transaction('write');
 
-    // Update password and replace recovery code with new Argon2id hash
-    await client.execute({
-      sql: `
-        UPDATE users
-        SET password_hash = ?, recovery_code_hash = ?, updated_at = ?
-        WHERE id = ?
-      `,
-      args: [newPasswordHashed, newRecoverySecretHashed, now, String(user.id)],
-    });
+    try {
+      // 1. Invalidate all existing sessions for this user
+      await txn.execute({
+        sql: 'UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL',
+        args: [now, String(user.id)],
+      });
 
-    // Audit log
-    await client.execute({
-      sql: `
-        INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, ip_address, user_agent, created_at)
-        VALUES (?, ?, 'PASSWORD_RECOVERED', 'user', ?, ?, ?, ?)
-      `,
-      args: [crypto.randomUUID(), String(user.id), String(user.id), ip || null, userAgent || null, now],
-    });
+      // 2. Update password and replace recovery code with new Argon2id hash
+      await txn.execute({
+        sql: `
+          UPDATE users
+          SET password_hash = ?, recovery_code_hash = ?, updated_at = ?
+          WHERE id = ?
+        `,
+        args: [newPasswordHashed, newRecoverySecretHashed, now, String(user.id)],
+      });
+
+      // 3. Audit log
+      await txn.execute({
+        sql: `
+          INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, ip_address, user_agent, created_at)
+          VALUES (?, ?, 'PASSWORD_RECOVERED', 'user', ?, ?, ?, ?)
+        `,
+        args: [crypto.randomUUID(), String(user.id), String(user.id), ip || null, userAgent || null, now],
+      });
+
+      await txn.commit();
+    } catch (err) {
+      await txn.rollback();
+      throw err;
+    }
 
     logger.info('Password recovered successfully, old sessions invalidated, new recovery secret issued', { userId: String(user.id) });
 

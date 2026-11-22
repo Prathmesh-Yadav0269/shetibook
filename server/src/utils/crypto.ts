@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import argon2 from 'argon2';
+import { config } from '../config/index.js';
 
 /**
  * Argon2id password hashing options complying with OWASP recommendations
@@ -27,7 +28,10 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
  * Server-side pepper for keyed recovery secret hashing
  */
 function getRecoveryPepper(): string {
-  return process.env.RECOVERY_PEPPER || process.env.SESSION_SECRET || 'shetibook-default-recovery-pepper-32b';
+  if (config.isProduction && !process.env.RECOVERY_PEPPER) {
+    throw new Error('Fatal: RECOVERY_PEPPER environment variable is strictly required in production.');
+  }
+  return config.RECOVERY_PEPPER;
 }
 
 /**
