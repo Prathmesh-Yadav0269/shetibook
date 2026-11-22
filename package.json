@@ -1,0 +1,40 @@
+{
+  "name": "shetibook",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ShetiBook (शेतीबुक) - Family-Based Farm Management System",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build:server": "npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "build": "npm run build:server && npm run build:client",
+    "test:server": "npm run test --workspace=server",
+    "test": "npm run test:server",
+    "typecheck:server": "npm run typecheck --workspace=server",
+    "typecheck:client": "npm run typecheck --workspace=client",
+    "typecheck": "npm run typecheck:server && npm run typecheck:client",
+    "lint:server": "npm run lint --workspace=server",
+    "lint:client": "npm run lint --workspace=client",
+    "lint": "npm run lint:server && npm run lint:client"
+  },
+  "keywords": [
+    "shetibook",
+    "agriculture",
+    "farm-management",
+    "marathi"
+  ],
+  "author": "ShetiBook Team",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "combined-stream": "^1.0.8",
+    "mime-types": "^3.0.2"
+  },
+  "devDependencies": {
+    "@paralleldrive/cuid2": "^3.3.0"
+  }
+}
