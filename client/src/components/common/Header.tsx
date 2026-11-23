@@ -33,6 +33,36 @@ export const Header: React.FC = () => {
           </div>
         </Link>
 
+        {/* Desktop Navigation Links */}
+        {user && selectedGroup && (
+          <nav className="hidden md:flex items-center space-x-1">
+            <Link
+              to="/family/overview"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-brand-green hover:bg-slate-50 transition-colors"
+            >
+              कुटुंब
+            </Link>
+            <Link
+              to="/farms"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-brand-green hover:bg-slate-50 transition-colors"
+            >
+              शेती व तुकडे
+            </Link>
+            <Link
+              to="/crops"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-brand-green hover:bg-slate-50 transition-colors"
+            >
+              पिके
+            </Link>
+            <Link
+              to="/activities"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-brand-green hover:bg-slate-50 transition-colors"
+            >
+              कामे व उपक्रम
+            </Link>
+          </nav>
+        )}
+
         {/* Right side controls */}
         <div className="flex items-center space-x-2 sm:space-x-3">
           <LanguageSwitcher />

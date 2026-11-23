@@ -133,3 +133,29 @@ ShetiBook distinguishes between application-level convention and genuine databas
 - **Global Rate Limiter**: 200 requests per 15-minute window per IP.
 - **Authentication Limiter**: 10 attempts per 15-minute window per IP on `/login`, `/register`, and `/recover-password`.
 - **Security Headers**: Express `helmet` enabled to provide strict `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, and `Strict-Transport-Security`.
+
+---
+
+## 10. Agricultural Domain Authorization & Integrity Protections
+
+### 10.1 Group Membership Verification
+- Every agricultural endpoint (`/api/v1/groups/:groupId/farms`, `plots`, `crops`, `activities`) is protected by `requireAuth` and `requireGroupMembership()`.
+- Access requires an active membership in the group (`status = 'active'`).
+- Outsiders are strictly forbidden (`403 FORBIDDEN_GROUP_ACCESS`).
+- Cross-group parameter poisoning (e.g. attempting to link a plot from Group A to a farm from Group B) is verified and rejected at the service layer inside database transactions.
+
+### 10.2 Physical Area Conservation
+- The sum of active plot areas within a farm cannot exceed the total farm area:
+  $$\sum \text{area\_sqm}(\text{plots}) \le \text{farm.area\_sqm}$$
+- Prevents accidental or malicious land inflation.
+- Negative, zero, or unparseable areas are rejected at the validator schema level.
+
+### 10.3 Intercropping Safeguards
+- In `separate` cultivation mode, plots reject registration of a second active or planned crop.
+- In `intercropping` cultivation mode, coexisting crops share the plot boundary without double-counting the physical farm area.
+- Attempting to downgrade a plot from `intercropping` to `separate` mode while multiple active crops remain is blocked with `400 MULTIPLE_CROPS_EXIST`.
+
+### 10.4 Append-Only Activity Event Timeline
+- Real-world farming activities record state transitions (`created`, `started`, `paused`, `resumed`, `completed`, `cancelled`) in `activity_events`.
+- Events are strictly append-only; existing timeline records cannot be modified or reordered.
+- Every event records the actor's user ID, preventing disputed claims regarding who performed agricultural operations.

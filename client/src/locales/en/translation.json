@@ -97,5 +97,21 @@
     "phoneLabel": "Registered Mobile Number",
     "accountStatus": "Account Status",
     "myGroups": "My Family Groups"
+  },
+  "agriculture": {
+    "farmsTitle": "Farm Management",
+    "farmsSubtitle": "Overview of your farms, physical plots, and crop records",
+    "addFarmButton": "Add New Farm",
+    "totalLand": "Total Farm Land",
+    "totalPlots": "Total Plots",
+    "activeCrops": "Active Crops",
+    "noFarmsYet": "No farms registered yet",
+    "noFarmsDesc": "Register your farm land, enter area once, and create plots.",
+    "addFirstFarm": "Add First Farm"
+  },
+  "units": {
+    "acre": "Acre",
+    "guntha": "Guntha",
+    "hectare": "Hectare"
   }
 }

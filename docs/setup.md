@@ -79,12 +79,32 @@ You should see:
 ```text
 [Migrations] Applying: 001_initial_schema.sql...
 [Migrations] Successfully applied: 001_initial_schema.sql
+[Migrations] Applying: 002_owner_constraint_and_audit.sql...
+[Migrations] Successfully applied: 002_owner_constraint_and_audit.sql
+[Migrations] Applying: 003_agricultural_management.sql...
+[Migrations] Successfully applied: 003_agricultural_management.sql
 [Migrations] Database is up to date.
+Migrations complete.
 ```
 
 ---
 
-## 6. Start the Development Servers
+## 6. (Optional) Seed Phase 2 Demo Data
+
+To populate a local development database with a demonstration farming family, farm, separate & intercropping plots, crops, and sample activities:
+
+```bash
+cd server
+npx tsx src/database/seed_phase2_demo.ts
+```
+
+Demo User Credentials:
+- **Phone Number**: `9876543210`
+- **Password**: `Password123!`
+
+---
+
+## 7. Start the Development Servers
 
 Open two terminal windows:
 
@@ -104,18 +124,18 @@ Open your browser at: [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 7. Run Quality & Verification Checks
+## 8. Run Quality & Verification Checks
 
 ```bash
-# 1. Run automated test suite (26 integration tests)
+# 1. Run automated test suite (60 automated tests across 5 suites)
 npm run test:server
 
-# 2. Strict TypeScript checks
+# 2. Strict TypeScript checks across monorepo
 npm run typecheck
 
-# 3. Code style & linting
+# 3. Code style & linting across monorepo
 npm run lint
 
-# 4. Production build verification
+# 4. Production build verification (Server tsc + Client vite build)
 npm run build
 ```

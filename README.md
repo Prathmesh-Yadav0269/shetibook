@@ -10,23 +10,29 @@ ShetiBook is a mobile-first, Marathi-first family-based farm management applicat
 
 ShetiBook is developed under a strict, phased engineering lifecycle:
 
-- **Phase 1: Foundation & Core Infrastructure** *(Current Phase)*
+- **Phase 1: Foundation & Core Infrastructure** *(Completed & Verified)*
   - Monorepo repository architecture, TypeScript standards, automated testing.
   - Relational database schema migrations (Turso / SQLite) with foreign-key enforcement.
   - Secure phone authentication with Argon2id password hashing and 128-bit keyed recovery secrets.
   - Database-backed HTTP-only session management and CSRF defense-in-depth.
   - Family group collaboration with atomic single-use invitation consumption, single active owner constraint, and database trigger immutability for audit logs.
   - Full Marathi (Devanagari) default interface with seamless bilingual English support.
-- **Phase 2: Farm & Agricultural Management**
-  - Farms, plots, crops, intercropping, and agricultural activities.
-- **Phase 3: Financial & Business Management**
+- **Phase 2: Farm & Agricultural Management** *(Completed & Verified)*
+  - Farm management: multiple farms per group, survey numbers, village, taluka, district.
+  - Land area conversion engine: Acre, Guntha, and Hectare conversions with normalized square-metre storage and zero cumulative rounding errors.
+  - Plot management: multiple physical plots per farm, physical area bounds checking, unallocated area tracking, duplicate name prevention.
+  - Intercropping architecture: separate vs intercropping cultivation modes, multiple active crops on a single physical plot without double-counting land area.
+  - Maharashtra crop types & seasons: 11 pre-seeded regional crops, 4 seasons (Kharif, Rabi, Zaid, Annual/Baramahi), custom crop names, sowing and harvest tracking.
+  - Agricultural activities & event timeline: 6 activity types, lifecycle state machine (pending, in_progress, paused, completed, cancelled), append-only event audit history with actor tracking.
+  - Group authorization: shared family access across all agricultural assets with strict outsider isolation.
+- **Phase 3: Financial & Business Management** *(Pending Review & Approval)*
   - Expenses, cost allocations, payments, harvests, and sales.
-- **Phase 4: Intelligence & Application Experience**
+- **Phase 4: Intelligence & Application Experience** *(Pending Phase 3)*
   - Dashboard, reports, notifications, offline synchronization, and Progressive Web App (PWA).
-- **Phase 5: Quality Assurance & Production Release**
+- **Phase 5: Quality Assurance & Production Release** *(Pending Phase 4)*
   - Integration, security hardening, performance tuning, deployment, backup/recovery, and handover.
 
-*(Strict project boundary: Agricultural and financial features will begin exclusively in Phase 2 and Phase 3 upon explicit approval).*
+*(Strict project boundary: Financial features belong exclusively to Phase 3 and have remained completely untouched).*
 
 ---
 
@@ -36,8 +42,8 @@ ShetiBook is developed under a strict, phased engineering lifecycle:
 |---|---|
 | **Frontend** | React 18, Vite 6, TypeScript 5, Tailwind CSS 3, React Router 7, TanStack Query 5, React Hook Form, Zod, i18next, Lucide React |
 | **Backend** | Node.js (v22+), Express 4, TypeScript 5, Zod, Argon2id, Cookie-Parser, Helmet, Express-Rate-Limit |
-| **Database** | Turso / SQLite relational database via official `@libsql/client` |
-| **Testing** | Vitest 3, Supertest 7 |
+| **Database** | Turso / SQLite relational database via official `@libsql/client` (Foreign Keys enabled) |
+| **Testing** | Vitest 3, Supertest 7 (60 automated tests across 5 suites) |
 | **Version Control** | Git, GitHub (`main` branch) |
 
 ---
@@ -51,10 +57,14 @@ shetibook/
 │   ├── src/
 │   │   ├── app/                # Layouts, providers, router
 │   │   ├── components/         # Reusable UI & common components
-│   │   ├── features/           # Feature modules (auth, family)
+│   │   ├── features/           # Feature modules:
+│   │   │   ├── auth/           # Login, register, recovery, account
+│   │   │   ├── family/         # Group overview, invite, join, members
+│   │   │   └── agriculture/    # Farms, plots, crops, intercropping, activities
 │   │   ├── locales/            # Marathi (mr) and English (en) translations
-│   │   ├── services/           # API client & i18n initialization
+│   │   ├── services/           # API client (GET, POST, PUT, PATCH, DELETE) & i18n
 │   │   ├── styles/             # Tailwind global styles
+│   │   ├── utils/              # Area conversions and localized formatting
 │   │   ├── App.tsx             # Root component with Query & Auth providers
 │   │   └── main.tsx            # Application entry point
 │   ├── package.json
@@ -65,14 +75,25 @@ shetibook/
 │   ├── src/
 │   │   ├── config/             # Typed environment configuration
 │   │   ├── database/           # LibSQL client & migration engine
-│   │   │   └── migrations/     # Version-controlled SQL schema migrations
+│   │   │   └── migrations/     # Version-controlled SQL schema migrations:
+│   │   │       ├── 001_initial_schema.sql
+│   │   │       ├── 002_owner_constraint_and_audit.sql
+│   │   │       └── 003_agricultural_management.sql
 │   │   ├── middleware/         # Auth, group RBAC, error handling, rate limiting
-│   │   ├── modules/            # Domain modules (auth, users, family)
-│   │   ├── utils/              # Argon2id crypto, token hashing, structured logger
-│   │   ├── validators/         # Zod schemas for input validation
+│   │   ├── modules/            # Domain modules:
+│   │   │   ├── auth/           # Argon2id crypto, session issuance, recovery
+│   │   │   ├── family/         # Group management, invitations, members
+│   │   │   └── agriculture/    # Farms, plots, crops, activities, event history
+│   │   ├── utils/              # Crypto, logger, area conversion math
+│   │   ├── validators/         # Zod schemas for auth, family, and agriculture
 │   │   ├── app.ts              # Express application setup
 │   │   └── server.ts           # Server bootstrap & migration auto-run
-│   ├── tests/                  # Automated integration tests
+│   ├── tests/                  # Automated integration tests (60 tests)
+│   │   ├── auth.test.ts
+│   │   ├── family.test.ts
+│   │   ├── area.test.ts
+│   │   ├── agriculture.test.ts
+│   │   └── agriculture.integration.test.ts
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── vitest.config.ts
@@ -84,8 +105,7 @@ shetibook/
 │   ├── security.md
 │   └── setup.md
 │
-├── .editorconfig
-├── .gitignore
+├── netlify.toml                # Netlify reverse proxy rewrite configuration
 ├── package.json
 └── README.md
 ```
@@ -113,7 +133,7 @@ cp server/.env.example server/.env
 cp client/.env.example client/.env
 ```
 
-Defaults are configured to work out-of-the-box using local SQLite (`file:./data/shetibook.db`).
+Defaults are configured to work out-of-the-box using local SQLite (`file:./data/shetibook.db`). For remote Turso, configure `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
 
 ### 4. Running Migrations
 ```bash
@@ -136,19 +156,19 @@ Visit `http://localhost:3000` in your browser.
 
 ## 🧪 Testing and Verification
 
-Run automated test suites covering registration, Argon2id hashing, sessions, password recovery, group creation, member invitations, and cross-group isolation:
+Run automated test suites covering authentication, family groups, area conversions, farm management, intercropping, and activity lifecycles:
 
 ```bash
-# Run server test suite
+# Run server test suite (60 automated tests)
 npm run test:server
 
-# Run strict TypeScript checks
+# Run strict TypeScript typecheck across monorepo
 npm run typecheck
 
-# Run linter
+# Run linter across monorepo
 npm run lint
 
-# Build production artifacts
+# Build production artifacts (server tsc + client vite build)
 npm run build
 ```
 
@@ -162,10 +182,6 @@ npm run build
 4. **Single Active Owner Database Constraint**: Partial unique index (`idx_group_members_single_active_owner`) enforces at the database level that a group cannot have more than one active owner.
 5. **Database-Level Audit Immutability**: SQLite triggers (`trg_audit_logs_no_update` and `trg_audit_logs_no_delete`) enforce that audit logs cannot be updated or deleted, providing true database-level immutability beyond mere application-level convention.
 6. **CSRF & Origin Protection**: Multi-layered defense validating request origin/referer and requiring custom anti-CSRF headers (`X-Requested-With`, `X-CSRF-Protection`) on state-changing operations.
-7. **Cross-Site Cookie Architecture**: Full documentation and configuration for Netlify frontend (`.netlify.app`) and Render backend (`.onrender.com`), supporting both same-origin reverse-proxying (recommended) and partition-ready `SameSite=None; Secure` cookies.
-
----
-
-## 📖 Known Limitations in Phase 1
-- **Agricultural Features Pending**: In accordance with Phase 1 boundaries, farm plots, crops, activities, and finances are not yet active.
-- **Account Recovery**: Recovery relies on the phone number and recovery code. If both are lost, manual recovery requires a separately governed administrative verification process.
+7. **Cross-Site Cookie Architecture**: Full documentation and configuration for Netlify frontend (`.netlify.app`) and Render backend (`.onrender.com`), supporting both same-origin reverse-proxying (`netlify.toml`) and partition-ready `SameSite=None; Secure` cookies.
+8. **Group-Scoped Agricultural RBAC**: Every farm, plot, crop, and activity operation strictly checks membership in the parent group. Outsiders cannot read or manipulate any agricultural records.
+9. **Physical Area Conservation**: Cultivation plot areas cannot silently exceed available unallocated farm area. Intercropping plots count physical land area strictly once.

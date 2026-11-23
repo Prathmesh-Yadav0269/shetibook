@@ -13,6 +13,17 @@ import { FamilyOverviewPage } from '../../features/family/pages/FamilyOverviewPa
 import { JoinFamilyPage } from '../../features/family/pages/JoinFamilyPage';
 import { InviteMemberPage } from '../../features/family/pages/InviteMemberPage';
 import { ProfilePage } from '../../features/family/pages/ProfilePage';
+import { FarmListPage } from '../../features/agriculture/pages/FarmListPage';
+import { FarmFormPage } from '../../features/agriculture/pages/FarmFormPage';
+import { FarmDetailPage } from '../../features/agriculture/pages/FarmDetailPage';
+import { PlotFormPage } from '../../features/agriculture/pages/PlotFormPage';
+import { PlotDetailPage } from '../../features/agriculture/pages/PlotDetailPage';
+import { CropListPage } from '../../features/agriculture/pages/CropListPage';
+import { CropFormPage } from '../../features/agriculture/pages/CropFormPage';
+import { CropDetailPage } from '../../features/agriculture/pages/CropDetailPage';
+import { ActivityListPage } from '../../features/agriculture/pages/ActivityListPage';
+import { ActivityFormPage } from '../../features/agriculture/pages/ActivityFormPage';
+import { ActivityDetailPage } from '../../features/agriculture/pages/ActivityDetailPage';
 import { useAuth } from '../providers/AuthProvider';
 
 const HomeRedirect: React.FC = () => {
@@ -52,6 +63,21 @@ export const router = createBrowserRouter([
       { path: '/family/join', element: <JoinFamilyPage /> },
       { path: '/family/invite', element: <InviteMemberPage /> },
       { path: '/profile', element: <ProfilePage /> },
+      // Agricultural management routes
+      { path: '/farms', element: <FarmListPage /> },
+      { path: '/farms/new', element: <FarmFormPage /> },
+      { path: '/farms/:farmId', element: <FarmDetailPage /> },
+      { path: '/farms/:farmId/edit', element: <FarmFormPage /> },
+      { path: '/farms/:farmId/plots/new', element: <PlotFormPage /> },
+      { path: '/farms/:farmId/plots/:plotId', element: <PlotDetailPage /> },
+      { path: '/farms/:farmId/plots/:plotId/edit', element: <PlotFormPage /> },
+      { path: '/crops', element: <CropListPage /> },
+      { path: '/crops/new', element: <CropFormPage /> },
+      { path: '/crops/:cropId', element: <CropDetailPage /> },
+      { path: '/crops/:cropId/edit', element: <CropFormPage /> },
+      { path: '/activities', element: <ActivityListPage /> },
+      { path: '/activities/new', element: <ActivityFormPage /> },
+      { path: '/activities/:activityId', element: <ActivityDetailPage /> },
     ],
   },
   {

@@ -9,6 +9,12 @@ import { csrfProtection } from './middleware/csrf.middleware.js';
 import { authRouter } from './modules/auth/index.js';
 import { usersRouter } from './modules/users/users.routes.js';
 import { familyRouter } from './modules/family/family.routes.js';
+import {
+  farmsRouter,
+  plotsRouter,
+  cropsRouter,
+  activitiesRouter,
+} from './modules/agriculture/agriculture.routes.js';
 import { getDatabaseClient } from './database/client.js';
 
 export const app = express();
@@ -64,6 +70,11 @@ app.use(csrfProtection);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/groups', familyRouter);
+app.use('/api/v1/groups/:groupId/farms', farmsRouter);
+app.use('/api/v1/groups/:groupId/farms/:farmId/plots', plotsRouter);
+app.use('/api/v1/groups/:groupId/plots', plotsRouter);
+app.use('/api/v1/groups/:groupId/crops', cropsRouter);
+app.use('/api/v1/groups/:groupId/activities', activitiesRouter);
 
 // 404 handler for unmatched routes
 app.use((_req, res) => {

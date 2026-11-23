@@ -226,3 +226,175 @@ Or for errors:
 ### `DELETE /api/v1/groups/:groupId`
 - **Auth**: Authenticated + Group Owner (`role: "owner"`)
 - **Description**: Deactivates the group safely (`status = 'deactivated'`). Prevents destructive cascade deletion of historical records.
+
+---
+
+## 4. Farm Management (`/api/v1/groups/:groupId/farms`)
+
+### `POST /api/v1/groups/:groupId/farms`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**:
+```json
+{
+  "farmName": "वडिलांचे मुख्य शेत",
+  "village": "बावडा",
+  "taluka": "इंदापूर",
+  "district": "पुणे",
+  "areaValue": 5.5,
+  "areaUnit": "acre",
+  "surveyNumber": "१२४/२ अ",
+  "notes": "विहीर व ठिबक सिंचन सोय उपलब्ध"
+}
+```
+- **Response (201 Created)**: Returns created farm record with calculated square meters and localized breakdown.
+
+### `GET /api/v1/groups/:groupId/farms`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Returns all active farms of the group with plot counts, active crop counts, allocated square meters, and unallocated area.
+
+### `GET /api/v1/groups/:groupId/farms/:farmId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Returns full farm details including all nested cultivation plots and active crops.
+
+### `PUT /api/v1/groups/:groupId/farms/:farmId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Updates farm name, location, survey number, notes, or area (with validation that updated area is not less than already-allocated plot areas).
+
+### `DELETE /api/v1/groups/:groupId/farms/:farmId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Soft-archives the farm (`is_active = 0`), preserving all historical crop and activity records.
+
+---
+
+## 5. Plot Management (`/api/v1/groups/:groupId/...`)
+
+### `POST /api/v1/groups/:groupId/farms/:farmId/plots`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**:
+```json
+{
+  "plotName": "प्लॉट २ - माळरानातील तुकडा",
+  "areaValue": 2.5,
+  "areaUnit": "acre",
+  "cultivationMode": "intercropping",
+  "notes": "सोयाबीन अधिक तूर जोडओळ पद्धत"
+}
+```
+- **Response (201 Created)**: Asserts that plot area does not exceed available unallocated farm area and plot name is unique on this farm.
+
+### `GET /api/v1/groups/:groupId/farms/:farmId/plots`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Lists all active cultivation plots of the farm with cultivation mode and active crops.
+
+### `GET /api/v1/groups/:groupId/plots/:plotId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Returns detailed plot information including all past and active crops.
+
+### `PUT /api/v1/groups/:groupId/plots/:plotId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Updates plot name, area, or notes with boundary validation against remaining farm area.
+
+### `PATCH /api/v1/groups/:groupId/plots/:plotId/mode`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**: `{ "cultivationMode": "separate" }`
+- **Description**: Switches cultivation mode. Blocked if switching to `separate` while plot currently has more than 1 active/planned crop.
+
+### `DELETE /api/v1/groups/:groupId/plots/:plotId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Soft-archives the plot (`is_active = 0`). Historical crop data is retained.
+
+---
+
+## 6. Crop Management (`/api/v1/groups/:groupId/crops`)
+
+### `GET /api/v1/groups/:groupId/crops/metadata`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Returns pre-seeded list of 11 regional crop types and 4 cropping seasons with Marathi and English names.
+
+### `POST /api/v1/groups/:groupId/crops`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**:
+```json
+{
+  "farmId": "farm-uuid",
+  "plotId": "plot-uuid",
+  "cropTypeId": "crop-type-uuid",
+  "cropSeasonId": "season-uuid",
+  "cropNameCustom": "सोयाबीन (जे.एस. ३३५)",
+  "sowingDate": "2026-06-20",
+  "expectedHarvestDate": "2026-10-25",
+  "notes": "तुरीसोबत आंतरपीक"
+}
+```
+- **Validation**:
+  - Enforces plot belongs to specified farm, which belongs to target group.
+  - If plot mode is `separate`, rejects if another active/planned crop exists on the plot.
+  - If plot mode is `intercropping`, allows coexisting crops without double-counting physical land area.
+  - Expected harvest date must be on or after sowing date.
+
+### `GET /api/v1/groups/:groupId/crops`
+- **Auth**: Authenticated + Active Group Member
+- **Query Filters**: `?farmId=...&plotId=...&status=planned|active|harvested|cancelled`
+- **Description**: Returns filtered list of crops.
+
+### `GET /api/v1/groups/:groupId/crops/:cropId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Returns complete crop details with plot, farm, and season information.
+
+### `PUT /api/v1/groups/:groupId/crops/:cropId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Updates crop details (variety, custom name, harvest expectation, notes).
+
+### `PATCH /api/v1/groups/:groupId/crops/:cropId/status`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**:
+```json
+{
+  "status": "harvested",
+  "actualHarvestDate": "2026-10-24"
+}
+```
+- **Description**: Transitions crop status (`planned` -> `active` -> `harvested` or `cancelled`).
+
+---
+
+## 7. Agricultural Activities (`/api/v1/groups/:groupId/activities`)
+
+### `GET /api/v1/groups/:groupId/activities/types`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Returns 6 pre-seeded activity types (Irrigation, Fertilizer, Weeding, Spraying, Ploughing, Custom).
+
+### `POST /api/v1/groups/:groupId/activities`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**:
+```json
+{
+  "farmId": "farm-uuid",
+  "plotId": "plot-uuid",
+  "cropId": "crop-uuid",
+  "activityTypeId": "act-type-uuid",
+  "customActivityName": "युरिया व डीएपी खताची पहिली मात्रा",
+  "description": "ऊस पिकाला पहिली खत मात्रा दिली"
+}
+```
+- **Response (201 Created)**: Creates activity in `pending` status and records initial `created` event in `activity_events`.
+
+### `GET /api/v1/groups/:groupId/activities`
+- **Auth**: Authenticated + Active Group Member
+- **Query Filters**: `?farmId=...&cropId=...&status=pending|in_progress|paused|completed`
+- **Description**: Returns activities matching criteria.
+
+### `GET /api/v1/groups/:groupId/activities/:activityId`
+- **Auth**: Authenticated + Active Group Member
+- **Description**: Returns activity details and complete chronological append-only timeline from `activity_events`.
+
+### `POST /api/v1/groups/:groupId/activities/:activityId/transition`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**:
+```json
+{
+  "transition": "start", // "start" | "pause" | "resume" | "complete" | "cancel"
+  "notes": "मजुरांसह प्रत्यक्ष खत टाकणे सुरू केले"
+}
+```
+- **Description**: Transitions status (`pending` -> `in_progress`, etc.) and records immutable event with actor user ID, event type, timestamp, and notes. Invalid transitions are rejected with `400 INVALID_TRANSITION`.

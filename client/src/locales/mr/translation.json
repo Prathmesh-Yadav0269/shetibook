@@ -97,5 +97,21 @@
     "phoneLabel": "नोंदणीकृत मोबाईल नंबर",
     "accountStatus": "खाते स्थिती",
     "myGroups": "माझे कुटुंब गट"
+  },
+  "agriculture": {
+    "farmsTitle": "शेती व्यवस्थापन",
+    "farmsSubtitle": "तुमच्या सर्व शेतजमिनी, तुकडे व पिकांची माहिती",
+    "addFarmButton": "नवीन शेत जोडा",
+    "totalLand": "एकूण शेतजमीन",
+    "totalPlots": "एकूण तुकडे / प्लॉट",
+    "activeCrops": "सध्याची पिके",
+    "noFarmsYet": "अद्याप कोणतेही शेत नोंदवले नाही",
+    "noFarmsDesc": "तुमच्या शेतजमिनीची नोंद करा, क्षेत्र टाका आणि तुकडे तयार करा.",
+    "addFirstFarm": "पहिले शेत जोडा"
+  },
+  "units": {
+    "acre": "एकर",
+    "guntha": "गुंठे",
+    "hectare": "हेक्टर"
   }
 }

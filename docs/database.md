@@ -1,8 +1,8 @@
 # ShetiBook — Database Documentation
 
-## 1. Relational Database Schema (Phase 1)
+## 1. Relational Database Schema (Phase 1 & Phase 2)
 
-ShetiBook uses a relational SQLite-compatible schema powered by `@libsql/client` (Turso). Foreign-key enforcement is enabled across all connections.
+ShetiBook uses a relational SQLite-compatible schema powered by `@libsql/client` (Turso). Foreign-key enforcement (`PRAGMA foreign_keys = ON;`) is enabled on every client connection.
 
 ```mermaid
 erDiagram
@@ -11,8 +11,19 @@ erDiagram
     farming_groups ||--o{ group_members : "has"
     users ||--o{ sessions : "has"
     farming_groups ||--o{ group_invitations : "issues"
-    users ||--o{ group_invitations : "invites"
     users ||--o{ audit_logs : "records"
+
+    farming_groups ||--o{ farms : "has"
+    farms ||--o{ cultivation_plots : "contains"
+    cultivation_plots ||--o{ crops : "grows"
+    crop_types ||--o{ crops : "classifies"
+    crop_seasons ||--o{ crops : "times"
+    farms ||--o{ activities : "conducts"
+    cultivation_plots ||--o{ activities : "applies to"
+    crops ||--o{ activities : "applies to"
+    activity_types ||--o{ activities : "classifies"
+    activities ||--o{ activity_events : "tracks"
+    users ||--o{ activity_events : "performs"
 
     users {
         TEXT id PK
@@ -44,88 +55,205 @@ erDiagram
         TEXT removed_by FK
     }
 
-    sessions {
-        TEXT id PK
-        TEXT user_id FK
-        TEXT token_hash UK
-        TEXT expires_at
-        TEXT created_at
-        TEXT revoked_at
-    }
-
-    group_invitations {
+    farms {
         TEXT id PK
         TEXT group_id FK
-        TEXT inviter_id FK
-        TEXT token_hash UK
-        TEXT intended_phone
-        TEXT status
-        TEXT expires_at
+        TEXT farm_name
+        TEXT village
+        TEXT taluka
+        TEXT district
+        REAL area_value
+        TEXT area_unit
+        REAL area_sqm
+        TEXT survey_number
+        TEXT notes
+        TEXT created_by FK
+        INTEGER is_active
         TEXT created_at
-        TEXT accepted_at
-        TEXT accepted_by FK
+        TEXT updated_at
     }
 
-    audit_logs {
+    cultivation_plots {
         TEXT id PK
-        TEXT actor_id FK
-        TEXT action
-        TEXT entity_type
-        TEXT entity_id
-        TEXT metadata
-        TEXT ip_address
-        TEXT user_agent
+        TEXT farm_id FK
+        TEXT group_id FK
+        TEXT plot_name
+        REAL area_value
+        TEXT area_unit
+        REAL area_sqm
+        TEXT cultivation_mode
+        TEXT notes
+        TEXT created_by FK
+        INTEGER is_active
         TEXT created_at
+        TEXT updated_at
+    }
+
+    crop_types {
+        TEXT id PK
+        TEXT crop_name_mr
+        TEXT crop_name_en
+        INTEGER is_active
+        TEXT created_at
+    }
+
+    crop_seasons {
+        TEXT id PK
+        TEXT season_name_mr
+        TEXT season_name_en
+        INTEGER start_month
+        INTEGER end_month
+        INTEGER is_active
+    }
+
+    crops {
+        TEXT id PK
+        TEXT group_id FK
+        TEXT farm_id FK
+        TEXT plot_id FK
+        TEXT crop_type_id FK
+        TEXT crop_season_id FK
+        TEXT crop_name_custom
+        TEXT sowing_date
+        TEXT expected_harvest_date
+        TEXT actual_harvest_date
+        TEXT status
+        TEXT notes
+        TEXT created_by FK
+        TEXT created_at
+        TEXT updated_at
+    }
+
+    activity_types {
+        TEXT id PK
+        TEXT name_mr
+        TEXT name_en
+        INTEGER is_active
+        TEXT created_at
+    }
+
+    activities {
+        TEXT id PK
+        TEXT group_id FK
+        TEXT farm_id FK
+        TEXT plot_id FK
+        TEXT crop_id FK
+        TEXT activity_type_id FK
+        TEXT custom_activity_name
+        TEXT description
+        TEXT status
+        TEXT started_by FK
+        TEXT created_at
+        TEXT updated_at
+    }
+
+    activity_events {
+        TEXT id PK
+        TEXT activity_id FK
+        TEXT group_id FK
+        TEXT actor_id FK
+        TEXT event_type
+        TEXT event_at
+        TEXT notes
     }
 ```
 
+---
+
 ## 2. Table Specifications
 
-### 2.1 `users`
-- Stores primary user identity.
-- `phone_number`: Unique, normalized 10-digit Indian mobile number.
-- `password_hash`: OWASP compliant Argon2id hash.
-- `recovery_code_hash`: Keyed Argon2id hash with server-side pepper (`RECOVERY_PEPPER`) of the 128-bit recovery secret. Plaintext code is never persisted.
-- `status`: `'active'`, `'suspended'`, or `'deactivated'`.
+### 2.1 Core Infrastructure Tables (Phase 1)
+- `users`: Primary identity. Normalized Indian phone number, Argon2id password hash, keyed Argon2id 128-bit recovery secret hash.
+- `farming_groups`: Farming family entity. Has `status` (`'active'`, `'archived'`, `'deactivated'`) and `owner_id`.
+- `group_members`: Memberships with partial unique index `idx_group_members_single_active_owner` enforcing at most 1 active owner per group.
+- `sessions`: Securely hashed (`token_hash`) HTTP-only bearer sessions with 30-day lifetime.
+- `group_invitations`: Single-use 7-day invitations hashed via SHA-256 with atomic conditional acceptance.
+- `audit_logs`: Application audit trail protected by SQLite triggers `trg_audit_logs_no_update` and `trg_audit_logs_no_delete`.
 
-### 2.2 `farming_groups`
-- Represents a farming family management group.
-- `owner_id`: References `users(id)` with `ON DELETE RESTRICT`.
-- `status`: `'active'`, `'archived'`, `'deactivated'`.
+---
 
-### 2.3 `group_members`
-- Junction table managing family memberships.
-- `role`: Restricted to `'owner'` or `'member'`.
-- `status`: `'active'` or `'removed'`.
-- Unique partial index `idx_group_members_unique_active` prevents duplicate active memberships for a user in the same group.
-- Unique partial index `idx_group_members_single_active_owner` enforces at the database level that a group cannot have more than one active owner (`WHERE role = 'owner' AND status = 'active'`).
+### 2.2 Agricultural Management Tables (Phase 2)
 
-### 2.4 `sessions`
-- Database-backed user sessions.
-- `token_hash`: SHA-256 hash of the cryptographically random session token.
-- `expires_at`: ISO timestamp (30 days validity).
-- `revoked_at`: Timestamp populated on logout or password recovery.
+#### `farms`
+- Represents a physical farm belonging to a family group.
+- Columns:
+  - `id`: Primary key (UUIDv4).
+  - `group_id`: References `farming_groups(id)` ON DELETE RESTRICT.
+  - `farm_name`: Display name of the farm.
+  - `village`: Village location (required).
+  - `taluka`: Taluka/Tehsil (optional).
+  - `district`: District (optional).
+  - `area_value`: Original input numeric area (`CHECK(area_value > 0)`).
+  - `area_unit`: Original input unit (`CHECK(area_unit IN ('acre', 'guntha', 'hectare'))`).
+  - `area_sqm`: Normalized area in square meters (`CHECK(area_sqm > 0)`).
+  - `survey_number`: Official 7/12 land survey number (गट क्रमांक / सर्व्हे नंबर).
+  - `notes`: Remarks, soil type, water source.
+  - `created_by`: References `users(id)`.
+  - `is_active`: Soft-deletion flag (`INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1))`).
+  - `created_at`, `updated_at`: ISO timestamps.
 
-### 2.5 `group_invitations`
-- Secure family invitations.
-- `token_hash`: SHA-256 hash of the 24-byte random invitation token.
-- `intended_phone`: Optional phone restriction.
-- `status`: `'pending'`, `'accepted'`, `'revoked'`, `'expired'`.
-- `expires_at`: ISO timestamp (7 days validity).
-- Atomic single-consumer consumption via conditional state updates (`WHERE status = 'pending' AND expires_at > now`).
+#### `cultivation_plots`
+- Represents a physical division / plot inside a farm.
+- Columns:
+  - `id`: Primary key (UUIDv4).
+  - `farm_id`: References `farms(id)` ON DELETE RESTRICT.
+  - `group_id`: References `farming_groups(id)` ON DELETE RESTRICT.
+  - `plot_name`: Distinct plot identifier.
+  - `area_value`, `area_unit`, `area_sqm`: Physical land area of the plot.
+  - `cultivation_mode`: `'separate'` (single crop) or `'intercropping'` (multiple coexisting crops).
+  - `notes`: Plot soil notes or irrigation method.
+  - `created_by`: References `users(id)`.
+  - `is_active`: Soft-deletion flag.
 
-### 2.6 `audit_logs`
-- Immutability enforced by database triggers (`trg_audit_logs_no_update`, `trg_audit_logs_no_delete`).
-- Any attempt to update or delete an audit record causes an immediate SQLite transaction abort (`RAISE(ABORT)`).
-- Operational log for security and identity events (`USER_REGISTERED`, `USER_LOGIN`, `USER_LOGOUT`, `PASSWORD_RECOVERED`, `GROUP_CREATED`, `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `MEMBER_REMOVED`, `GROUP_DEACTIVATED`).
-- Never logs plaintext passwords, recovery codes, or raw tokens.
+#### `crop_types` & `crop_seasons`
+- Standard master tables pre-seeded with Maharashtra crops and agricultural seasons:
+  - 11 pre-seeded crops: Cotton (कापूस), Soybean (सोयाबीन), Sugarcane (ऊस), Onion (कांदा), Tur/Arhar (तूर), Gram/Chana (हरभरा), Wheat (गहू), Bajra (बाजरी), Jowar (ज्वारी), Maize (मका), Pomegranate (डाळिंब).
+  - 4 pre-seeded seasons: Kharif (खरीप, Jun–Oct), Rabi (रब्बी, Oct–Mar), Zaid/Summer (उन्हाळी, Mar–Jun), Annual (बारमाही).
 
-## 3. Migration System
+#### `crops`
+- Represents a specific crop sown on a plot.
+- Columns:
+  - `id`: Primary key (UUIDv4).
+  - `group_id`, `farm_id`, `plot_id`: Relational hierarchy references.
+  - `crop_type_id`: References `crop_types(id)`.
+  - `crop_season_id`: References `crop_seasons(id)`.
+  - `crop_name_custom`: Optional variety name (e.g. "को ८६०३२", "जेएस ३३५").
+  - `sowing_date`: ISO date string (YYYY-MM-DD).
+  - `expected_harvest_date`, `actual_harvest_date`: Optional harvest date strings.
+  - `status`: `'planned'`, `'active'`, `'harvested'`, `'cancelled'`.
+  - `notes`: Variety, seed source, notes.
+  - `created_by`: References `users(id)`.
 
-- Migrations are version-controlled SQL files located in `server/src/database/migrations/`.
-- Tracked via `schema_migrations` table.
-- Applied via `client.executeMultiple(sqlRaw)` to natively support complex multi-statement migrations including triggers with internal semicolons.
-- Lexicographical execution order:
-  - `001_initial_schema.sql`: Core relational tables, foreign keys, and indexes.
-  - `002_owner_constraint_and_audit.sql`: Single active owner partial unique index and audit log immutable triggers.
-- Automatically verified and applied at backend startup and before automated tests.
+#### `activity_types`
+- Master activity categories pre-seeded with 6 operations:
+  - Irrigation (पाणी व्यवस्थापन)
+  - Fertilizer Application (खत व्यवस्थापन)
+  - Weeding & Intercultural (खुरपणी व कोळपणी)
+  - Spraying & Pest Control (कीटकनाशक फवारणी)
+  - Ploughing & Land Prep (नांगरणी व मशागत)
+  - Other Operations (इतर कामे)
+
+#### `activities` & `activity_events`
+- `activities`: Tracks task execution on a farm, plot, or specific crop with status `'pending'`, `'in_progress'`, `'paused'`, `'completed'`.
+- `activity_events`: Append-only audit timeline recording every state transition (`created`, `started`, `paused`, `resumed`, `completed`, `cancelled`) with `actor_id` and timestamp `event_at`.
+
+---
+
+## 3. Database Indexes
+
+To ensure fast queries and high concurrency under multi-tenant family access:
+
+```sql
+CREATE INDEX idx_farms_group_id ON farms(group_id);
+CREATE INDEX idx_cultivation_plots_farm_id ON cultivation_plots(farm_id);
+CREATE INDEX idx_cultivation_plots_group_id ON cultivation_plots(group_id);
+CREATE INDEX idx_crops_farm_id ON crops(farm_id);
+CREATE INDEX idx_crops_plot_id ON crops(plot_id);
+CREATE INDEX idx_crops_group_id ON crops(group_id);
+CREATE INDEX idx_activities_farm_id ON activities(farm_id);
+CREATE INDEX idx_activities_plot_id ON activities(plot_id);
+CREATE INDEX idx_activities_crop_id ON activities(crop_id);
+CREATE INDEX idx_activities_group_id ON activities(group_id);
+CREATE INDEX idx_activity_events_activity_id ON activity_events(activity_id);
+CREATE INDEX idx_activity_events_group_id ON activity_events(group_id);
+```
