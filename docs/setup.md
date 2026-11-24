@@ -83,19 +83,21 @@ You should see:
 [Migrations] Successfully applied: 002_owner_constraint_and_audit.sql
 [Migrations] Applying: 003_agricultural_management.sql...
 [Migrations] Successfully applied: 003_agricultural_management.sql
+[Migrations] Applying: 004_financial_management.sql...
+[Migrations] Successfully applied: 004_financial_management.sql
 [Migrations] Database is up to date.
 Migrations complete.
 ```
 
 ---
 
-## 6. (Optional) Seed Phase 2 Demo Data
+## 6. (Optional) Seed Phase 3 Demo Data
 
-To populate a local development database with a demonstration farming family, farm, separate & intercropping plots, crops, and sample activities:
+To populate a local development database with a demonstration farming family, farm, plots, crops, expenses, crop allocations, harvests, sales, and payment transactions:
 
 ```bash
 cd server
-npx tsx src/database/seed_phase2_demo.ts
+npx tsx src/database/seed_phase3_demo.ts
 ```
 
 Demo User Credentials:
@@ -127,7 +129,7 @@ Open your browser at: [http://localhost:3000](http://localhost:3000)
 ## 8. Run Quality & Verification Checks
 
 ```bash
-# 1. Run automated test suite (60 automated tests across 5 suites)
+# 1. Run automated test suite (78 automated tests across 7 suites)
 npm run test:server
 
 # 2. Strict TypeScript checks across monorepo

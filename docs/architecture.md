@@ -18,7 +18,7 @@ flowchart TD
 
 - **Phase 1: Foundation & Core Infrastructure** *(Completed)*: Monorepo, database migrations, phone + Argon2id authentication, 128-bit keyed recovery secrets, HTTP-only sessions, family groups with single active owner and atomic invitation consumption, audit log triggers, and Marathi/English bilingual support.
 - **Phase 2: Farm & Agricultural Management** *(Completed)*: Farms, plots, land area conversions, crops, intercropping architecture, activities, and append-only event timeline.
-- **Phase 3: Financial & Business Management** *(Pending)*: Expenses, allocations, payments, harvests, and sales.
+- **Phase 3: Financial & Business Management** *(Completed)*: Expenses with Marathi agricultural categories, flexible percentage/direct crop cost allocations, reusable multi-installment payment tracking with overpayment prevention, harvest inventory with sold/remaining tracking, agricultural sales with market buyer metadata, and executive Accrual P&L & Realized Cash Flow reporting.
 - **Phase 4: Intelligence & Application Experience** *(Pending)*: Dashboard, reports, notifications, offline synchronization, and PWA.
 - **Phase 5: Quality Assurance & Production Release** *(Pending)*: Integration, security, performance, deployment, backup/recovery, and handover.
 
@@ -154,3 +154,50 @@ Every request to an agricultural resource (`/api/v1/groups/:groupId/...`) execut
 2. Queries `group_members` for `group_id = :groupId AND user_id = :userId AND status = 'active'`.
 3. Rejects with `403 FORBIDDEN_GROUP_ACCESS` if the user is not an active member.
 4. Allows all active family members (`owner` and `member`) to collaborate on managing farms, plots, crops, and shared activities.
+
+---
+
+## 8. Financial & Business Management Architecture (Phase 3)
+
+### 8.1 Monetary Integer Paise Engine
+To prevent rounding errors inherent in IEEE 754 floating-point operations:
+- All monetary fields (`expenses.amount_paise`, `sales.total_amount_paise`, `payments.amount_paise`, `expense_allocations.allocated_amount_paise`) are stored as exact integers in paise ($₹1 = 100\text{ paise}$).
+- Inputs in Rupees ($₹$) are converted via `Math.round(rupees * 100)` at validation entry, and converted to Rupees via `paise / 100` only at presentation layer.
+- Mathematical operations (sums, outstanding balances, allocations) execute strictly in integer arithmetic.
+
+### 8.2 Dynamic Crop Cost Allocations
+Agricultural expenses often span general farm maintenance (e.g. tractor diesel) or specific crops (e.g. sugarcane fertilizer):
+- An expense can have 0, 1, or multiple allocations targeting specific crops (`expense_allocations`).
+- **Percentage or Direct Paise**: Allocation inputs can be defined as percentage splits or explicit paise amounts.
+- **Auto Farm-General Residual**: If the sum of crop allocations is less than the total expense amount:
+  $$\text{Farm General Balance} = \text{Total Expense} - \sum \text{Crop Allocations}$$
+  The unallocated portion is automatically accounted as general farm overhead.
+- **Over-allocation Guard**: $\sum \text{Allocations} > \text{Total Expense}$ is rejected with `400 ALLOCATION_EXCEEDS_EXPENSE`.
+
+### 8.3 Reusable Polymorphic Payments & Overpayment Protection
+Farmers frequently make partial payments to agricultural input suppliers or receive payments in tranches from agricultural traders:
+- A polymorphic `payments` entity links to either an expense (`payment_type = 'expense'`) or a sale (`payment_type = 'sale'`).
+- **Overpayment Rejection**: Every payment request checks the existing paid sum against the total invoice amount:
+  $$\text{New Payment Amount} \le \text{Total Amount} - \sum \text{Prior Payments}$$
+  Any overpayment attempt is rejected with `400 PAYMENT_EXCEEDS_OUTSTANDING_BALANCE`.
+- **Payment Status Derivation**:
+  - `unpaid`: $\sum \text{Payments} = 0$
+  - `partial`: $0 < \sum \text{Payments} < \text{Total Amount}$
+  - `paid`: $\sum \text{Payments} = \text{Total Amount}$
+
+### 8.4 Harvest Inventory & Overselling Prevention
+- Harvests track physical yields (`quantity_kg`, stored in integer grams or normalized kg) and track linked sales.
+- When creating a sale linked to a harvest, the service verifies available stock:
+  $$\text{Sale Quantity} \le \text{Harvest Quantity} - \sum \text{Prior Linked Sales}$$
+  Any overselling attempt is rejected with `400 SALE_QUANTITY_EXCEEDS_AVAILABLE_HARVEST`.
+
+### 8.5 Dual Accounting Reporting (P&L vs Cash Flow)
+The executive summary (`/finance/summary`) calculates both operational and cash-flow health:
+1. **Accrual P&L**:
+   $$\text{Operating Profit/Loss} = \sum \text{Sales Invoiced} - \sum \text{Expenses Incurred}$$
+2. **Realized Cash Flow**:
+   $$\text{Net Cash Position} = \sum \text{Cash Inflows Received} - \sum \text{Cash Outflows Paid}$$
+3. **Working Capital Tracking**:
+   - Accounts Receivable: $\sum \text{Sales Invoiced} - \sum \text{Inflow Payments}$
+   - Accounts Payable: $\sum \text{Expenses Incurred} - \sum \text{Outflow Payments}$
+

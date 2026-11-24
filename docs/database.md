@@ -1,6 +1,6 @@
 # ShetiBook — Database Documentation
 
-## 1. Relational Database Schema (Phase 1 & Phase 2)
+## 1. Relational Database Schema (Phase 1, Phase 2 & Phase 3)
 
 ShetiBook uses a relational SQLite-compatible schema powered by `@libsql/client` (Turso). Foreign-key enforcement (`PRAGMA foreign_keys = ON;`) is enabled on every client connection.
 
@@ -24,6 +24,19 @@ erDiagram
     activity_types ||--o{ activities : "classifies"
     activities ||--o{ activity_events : "tracks"
     users ||--o{ activity_events : "performs"
+
+    farming_groups ||--o{ expense_categories : "has"
+    farming_groups ||--o{ expenses : "incurs"
+    expense_categories ||--o{ expenses : "categorizes"
+    expenses ||--o{ expense_allocations : "allocates"
+    crops ||--o{ expense_allocations : "receives"
+    farming_groups ||--o{ harvests : "records"
+    crops ||--o{ harvests : "yields"
+    farming_groups ||--o{ sales : "transacts"
+    harvests ||--o{ sales : "supplies"
+    farming_groups ||--o{ payments : "records"
+    expenses ||--o{ payments : "settles"
+    sales ||--o{ payments : "settles"
 
     users {
         TEXT id PK
@@ -256,4 +269,111 @@ CREATE INDEX idx_activities_crop_id ON activities(crop_id);
 CREATE INDEX idx_activities_group_id ON activities(group_id);
 CREATE INDEX idx_activity_events_activity_id ON activity_events(activity_id);
 CREATE INDEX idx_activity_events_group_id ON activity_events(group_id);
+
+-- Phase 3: Financial Management Indexes
+CREATE INDEX idx_expenses_group_id ON expenses(group_id);
+CREATE INDEX idx_expenses_category_id ON expenses(category_id);
+CREATE INDEX idx_expenses_farm_id ON expenses(farm_id);
+CREATE INDEX idx_expenses_expense_date ON expenses(expense_date);
+CREATE INDEX idx_expense_allocations_expense_id ON expense_allocations(expense_id);
+CREATE INDEX idx_expense_allocations_crop_id ON expense_allocations(crop_id);
+CREATE INDEX idx_harvests_group_id ON harvests(group_id);
+CREATE INDEX idx_harvests_crop_id ON harvests(crop_id);
+CREATE INDEX idx_harvests_harvest_date ON harvests(harvest_date);
+CREATE INDEX idx_sales_group_id ON sales(group_id);
+CREATE INDEX idx_sales_crop_id ON sales(crop_id);
+CREATE INDEX idx_sales_harvest_id ON sales(harvest_id);
+CREATE INDEX idx_sales_sale_date ON sales(sale_date);
+CREATE INDEX idx_payments_group_id ON payments(group_id);
+CREATE INDEX idx_payments_expense_id ON payments(expense_id);
+CREATE INDEX idx_payments_sale_id ON payments(sale_id);
+CREATE INDEX idx_payments_payment_date ON payments(payment_date);
 ```
+
+---
+
+## 4. Financial & Business Schema Entities (Phase 3)
+
+### 4.1 `expense_categories`
+Master table of expenditure categories with regional Marathi names:
+- Pre-seeded categories:
+  1. Seeds & Seedlings (बियाणे व रोपे)
+  2. Fertilizers & Manure (खते व सेंद्रिय खते)
+  3. Pesticides & Insecticides (कीटकनाशके व तणनाशके)
+  4. Labor & Daily Wages (मजुरी व कामाचा खर्च)
+  5. Machinery & Fuel (ट्रॅक्टर, यंत्रसामग्री व डिझेल)
+  6. Irrigation & Water (पाणी व ठिबक खर्च)
+  7. Electricity & Utility (वीजबिल व वीज जोडणी)
+  8. Packaging & Transportation (वाहतूक व पॅकिंग खर्च)
+  9. Land Lease & Rent (जमीन भाडेपट्टी / खंड)
+  10. Miscellaneous (इतर किरकोळ खर्च)
+
+### 4.2 `expenses`
+Header record for every agricultural expenditure:
+- `id`: Primary key (UUIDv4).
+- `group_id`: References `farming_groups(id)`.
+- `farm_id`: References `farms(id)` (optional general farm association).
+- `category_id`: References `expense_categories(id)`.
+- `amount_paise`: Integer paise ($> 0$).
+- `expense_date`: ISO date (YYYY-MM-DD).
+- `payment_status`: `'unpaid'`, `'partial'`, `'paid'`.
+- `vendor_name`: Input supplier or laborer name.
+- `payment_method`: `'cash'`, `'upi'`, `'bank_transfer'`, `'credit'`.
+- `receipt_url`: Optional scanned receipt URL.
+- `notes`: Specific item details or purchase notes.
+- `created_by`: References `users(id)`.
+
+### 4.3 `expense_allocations`
+Allocation records distributing an expense across specific crops:
+- `id`: Primary key (UUIDv4).
+- `expense_id`: References `expenses(id)` ON DELETE CASCADE.
+- `crop_id`: References `crops(id)`.
+- `allocated_amount_paise`: Integer paise allocated to this crop.
+- `percentage`: Percentage of the total expense.
+
+### 4.4 `harvests`
+Agricultural harvest records tracking yields and inventory:
+- `id`: Primary key (UUIDv4).
+- `group_id`: References `farming_groups(id)`.
+- `crop_id`: References `crops(id)`.
+- `harvest_date`: ISO date.
+- `quantity`: Original quantity value entered by farmer.
+- `unit`: Unit (`'kg'`, `'quintal'`, `'ton'`, `'crate'`).
+- `quantity_kg`: Normalized weight in kilograms.
+- `quality_grade`: Quality rating (`'Grade A'`, `'Grade B'`, `'Commercial'`).
+- `storage_location`: Field, warehouse, cold storage location.
+- `notes`: Harvest notes and picker details.
+- `created_by`: References `users(id)`.
+
+### 4.5 `sales`
+Commercial sales of farm produce:
+- `id`: Primary key (UUIDv4).
+- `group_id`: References `farming_groups(id)`.
+- `crop_id`: References `crops(id)`.
+- `harvest_id`: Optional reference to `harvests(id)` when sold from stock.
+- `sale_date`: ISO date.
+- `buyer_name`: Market trader or direct purchaser name.
+- `market_name`: APMC mandi name (e.g. "पुणे गुलटेकडी मार्केट", "सोलापूर कृषी उत्पन्न बाजार समिती").
+- `quantity`: Quantity sold.
+- `unit`: Measurement unit (`'kg'`, `'quintal'`, `'ton'`, `'crate'`).
+- `quantity_kg`: Normalized kilograms.
+- `rate_per_unit_paise`: Price per unit in paise.
+- `total_amount_paise`: Total sale value in integer paise.
+- `payment_status`: `'unpaid'`, `'partial'`, `'paid'`.
+- `notes`: Gate pass number, vehicle details, moisture deduction remarks.
+- `created_by`: References `users(id)`.
+
+### 4.6 `payments`
+Reusable multi-installment payment transaction ledger:
+- `id`: Primary key (UUIDv4).
+- `group_id`: References `farming_groups(id)`.
+- `payment_type`: Polymorphic discriminant (`'expense'` for outgoing payables, `'sale'` for incoming receivables).
+- `expense_id`: References `expenses(id)` when `payment_type = 'expense'`.
+- `sale_id`: References `sales(id)` when `payment_type = 'sale'`.
+- `amount_paise`: Payment installment in integer paise ($> 0$).
+- `payment_date`: ISO date.
+- `payment_mode`: `'cash'`, `'upi'`, `'bank_transfer'`, `'cheque'`.
+- `reference_number`: Bank reference, UTR, or cheque number.
+- `notes`: Installment remarks.
+- `created_by`: References `users(id)`.
+

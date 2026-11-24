@@ -25,14 +25,20 @@ ShetiBook is developed under a strict, phased engineering lifecycle:
   - Maharashtra crop types & seasons: 11 pre-seeded regional crops, 4 seasons (Kharif, Rabi, Zaid, Annual/Baramahi), custom crop names, sowing and harvest tracking.
   - Agricultural activities & event timeline: 6 activity types, lifecycle state machine (pending, in_progress, paused, completed, cancelled), append-only event audit history with actor tracking.
   - Group authorization: shared family access across all agricultural assets with strict outsider isolation.
-- **Phase 3: Financial & Business Management** *(Pending Review & Approval)*
-  - Expenses, cost allocations, payments, harvests, and sales.
-- **Phase 4: Intelligence & Application Experience** *(Pending Phase 3)*
+- **Phase 3: Financial & Business Management** *(Completed & Verified)*
+  - Integer paise accounting engine: exact integer storage for all monetary amounts with zero floating-point drift.
+  - Expense tracking & pre-seeded Maharashtra categories: 10 regional agricultural categories (Seeds, Fertilizers, Pesticides, Labor, Machinery, Irrigation, Electricity, Transport, Lease, Other).
+  - Flexible crop cost allocation: full or partial allocation to individual crops or plots, with automatic farm-general residual allocation.
+  - Reusable polymorphic payment model: multi-installment tracking for expenses (payables) and sales (receivables) with overpayment prevention.
+  - Harvest inventory management: yield tracking in metric/regional units (Quintal, Ton, Kg, Crates), sold vs remaining balance calculation, and overselling protection.
+  - Agricultural sales & market buyers: direct sales or sales from harvest stock, APMC market and buyer tracking, unit rates, and instant receivable status calculation.
+  - Executive financial dashboard & reports: Accrual P&L, Realized Cash Flow, outstanding receivables/payables, and category expense distribution in Marathi and English.
+- **Phase 4: Intelligence & Application Experience** *(Pending Phase 3 Approval)*
   - Dashboard, reports, notifications, offline synchronization, and Progressive Web App (PWA).
 - **Phase 5: Quality Assurance & Production Release** *(Pending Phase 4)*
   - Integration, security hardening, performance tuning, deployment, backup/recovery, and handover.
 
-*(Strict project boundary: Financial features belong exclusively to Phase 3 and have remained completely untouched).*
+*(Strict project boundary: Offline sync and PWA enhancements belong exclusively to Phase 4 and remain untouched).*
 
 ---
 
@@ -43,7 +49,7 @@ ShetiBook is developed under a strict, phased engineering lifecycle:
 | **Frontend** | React 18, Vite 6, TypeScript 5, Tailwind CSS 3, React Router 7, TanStack Query 5, React Hook Form, Zod, i18next, Lucide React |
 | **Backend** | Node.js (v22+), Express 4, TypeScript 5, Zod, Argon2id, Cookie-Parser, Helmet, Express-Rate-Limit |
 | **Database** | Turso / SQLite relational database via official `@libsql/client` (Foreign Keys enabled) |
-| **Testing** | Vitest 3, Supertest 7 (60 automated tests across 5 suites) |
+| **Testing** | Vitest 3, Supertest 7 (78 automated tests across 7 suites) |
 | **Version Control** | Git, GitHub (`main` branch) |
 
 ---
@@ -60,11 +66,12 @@ shetibook/
 │   │   ├── features/           # Feature modules:
 │   │   │   ├── auth/           # Login, register, recovery, account
 │   │   │   ├── family/         # Group overview, invite, join, members
-│   │   │   └── agriculture/    # Farms, plots, crops, intercropping, activities
+│   │   │   ├── agriculture/    # Farms, plots, crops, intercropping, activities
+│   │   │   └── finance/        # Expenses, allocations, harvests, sales, payments, summary
 │   │   ├── locales/            # Marathi (mr) and English (en) translations
 │   │   ├── services/           # API client (GET, POST, PUT, PATCH, DELETE) & i18n
 │   │   ├── styles/             # Tailwind global styles
-│   │   ├── utils/              # Area conversions and localized formatting
+│   │   ├── utils/              # Area & financial conversion helpers (paise, kg)
 │   │   ├── App.tsx             # Root component with Query & Auth providers
 │   │   └── main.tsx            # Application entry point
 │   ├── package.json
@@ -78,22 +85,26 @@ shetibook/
 │   │   │   └── migrations/     # Version-controlled SQL schema migrations:
 │   │   │       ├── 001_initial_schema.sql
 │   │   │       ├── 002_owner_constraint_and_audit.sql
-│   │   │       └── 003_agricultural_management.sql
+│   │   │       ├── 003_agricultural_management.sql
+│   │   │       └── 004_financial_management.sql
 │   │   ├── middleware/         # Auth, group RBAC, error handling, rate limiting
 │   │   ├── modules/            # Domain modules:
 │   │   │   ├── auth/           # Argon2id crypto, session issuance, recovery
 │   │   │   ├── family/         # Group management, invitations, members
-│   │   │   └── agriculture/    # Farms, plots, crops, activities, event history
-│   │   ├── utils/              # Crypto, logger, area conversion math
-│   │   ├── validators/         # Zod schemas for auth, family, and agriculture
+│   │   │   ├── agriculture/    # Farms, plots, crops, activities, event history
+│   │   │   └── finance/        # Expenses, allocations, harvests, sales, payments, P&L
+│   │   ├── utils/              # Crypto, logger, area & finance math (paise, kg)
+│   │   ├── validators/         # Zod schemas for auth, family, agriculture, finance
 │   │   ├── app.ts              # Express application setup
 │   │   └── server.ts           # Server bootstrap & migration auto-run
-│   ├── tests/                  # Automated integration tests (60 tests)
+│   ├── tests/                  # Automated integration tests (78 tests)
 │   │   ├── auth.test.ts
 │   │   ├── family.test.ts
 │   │   ├── area.test.ts
 │   │   ├── agriculture.test.ts
-│   │   └── agriculture.integration.test.ts
+│   │   ├── agriculture.integration.test.ts
+│   │   ├── finance.test.ts
+│   │   └── finance.integration.test.ts
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── vitest.config.ts

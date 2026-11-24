@@ -398,3 +398,157 @@ Or for errors:
 }
 ```
 - **Description**: Transitions status (`pending` -> `in_progress`, etc.) and records immutable event with actor user ID, event type, timestamp, and notes. Invalid transitions are rejected with `400 INVALID_TRANSITION`.
+
+---
+
+## 8. Financial Management (`/api/v1/groups/:groupId/...`)
+
+### 8.1 Expense Categories
+#### `GET /api/v1/groups/:groupId/expenses/categories`
+- **Auth**: Authenticated + Group Member
+- **Description**: Returns 10 pre-seeded Maharashtra agricultural expense categories.
+
+### 8.2 Farm Expenses
+#### `POST /api/v1/groups/:groupId/expenses`
+- **Auth**: Authenticated + Group Member
+- **Request Body**:
+```json
+{
+  "categoryId": "category-uuid",
+  "farmId": "farm-uuid",
+  "amountPaise": 550000,
+  "expenseDate": "2026-11-20",
+  "vendorName": "कृषी सेवा केंद्र, बारामती",
+  "paymentMethod": "cash",
+  "notes": "युरिया व पोटॅश खरेदी",
+  "allocations": [
+    {
+      "cropId": "crop-uuid-1",
+      "allocatedAmountPaise": 350000
+    }
+  ]
+}
+```
+- **Description**: Incurs an expense. Any unallocated remainder (₹2,000 / 200000 paise) automatically remains as general farm expense. Over-allocation is rejected with `400 ALLOCATION_EXCEEDS_EXPENSE`.
+
+#### `GET /api/v1/groups/:groupId/expenses`
+- **Auth**: Authenticated + Group Member
+- **Query Filters**: `?categoryId=...&farmId=...&cropId=...&paymentStatus=unpaid|partial|paid&startDate=...&endDate=...`
+- **Response**: List of expenses with computed total paid and outstanding balance.
+
+#### `GET /api/v1/groups/:groupId/expenses/:expenseId`
+- **Auth**: Authenticated + Group Member
+- **Description**: Returns full expense details, category name, crop allocations breakdown, and payment history.
+
+#### `PUT /api/v1/groups/:groupId/expenses/:expenseId`
+- **Auth**: Authenticated + Group Member
+- **Description**: Updates expense details and rebalances crop allocations.
+
+#### `DELETE /api/v1/groups/:groupId/expenses/:expenseId`
+- **Auth**: Authenticated + Group Member
+- **Description**: Deletes expense. Blocked if payments exist.
+
+### 8.3 Harvest Records
+#### `POST /api/v1/groups/:groupId/harvests`
+- **Auth**: Authenticated + Group Member
+- **Request Body**:
+```json
+{
+  "cropId": "crop-uuid",
+  "harvestDate": "2026-11-22",
+  "quantity": 45,
+  "unit": "quintal",
+  "qualityGrade": "Grade A",
+  "storageLocation": "शेत गोडाऊन",
+  "notes": "पहिल्या तोडणीचा उच्च प्रतीचा माल"
+}
+```
+
+#### `GET /api/v1/groups/:groupId/harvests`
+- **Auth**: Authenticated + Group Member
+- **Response**: List of harvests with total yield, sold quantity, remaining available inventory, and unit conversions.
+
+#### `GET /api/v1/groups/:groupId/harvests/:harvestId`
+- **Auth**: Authenticated + Group Member
+- **Description**: Returns harvest details and all linked sales consuming this harvest inventory.
+
+### 8.4 Agricultural Sales
+#### `POST /api/v1/groups/:groupId/sales`
+- **Auth**: Authenticated + Group Member
+- **Request Body**:
+```json
+{
+  "cropId": "crop-uuid",
+  "harvestId": "harvest-uuid",
+  "saleDate": "2026-11-23",
+  "buyerName": "गणेश अडत दुकान",
+  "marketName": "पुणे कृषी उत्पन्न बाजार समिती",
+  "quantity": 30,
+  "unit": "quintal",
+  "ratePerUnitPaise": 285000,
+  "totalAmountPaise": 8550000,
+  "notes": "पट्टी क्रमांक १८४"
+}
+```
+- **Validation**: If `harvestId` is supplied, asserts that `quantity_kg <= available_quantity_kg`. Overselling is rejected with `400 SALE_QUANTITY_EXCEEDS_AVAILABLE_HARVEST`.
+
+#### `GET /api/v1/groups/:groupId/sales`
+- **Auth**: Authenticated + Group Member
+- **Query Filters**: `?cropId=...&buyerName=...&paymentStatus=unpaid|partial|paid`
+- **Response**: List of sales with paid amounts and outstanding receivables.
+
+#### `GET /api/v1/groups/:groupId/sales/:saleId`
+- **Auth**: Authenticated + Group Member
+- **Description**: Sale invoice details, linked harvest info, and installment payment history.
+
+### 8.5 Reusable Payments
+#### `POST /api/v1/groups/:groupId/payments`
+- **Auth**: Authenticated + Group Member
+- **Request Body**:
+```json
+{
+  "paymentType": "expense", // or "sale"
+  "expenseId": "expense-uuid", // required if paymentType is "expense"
+  "amountPaise": 200000,
+  "paymentDate": "2026-11-24",
+  "paymentMode": "upi",
+  "referenceNumber": "UPI/332155890123",
+  "notes": "दुसरा हप्ता जमा केला"
+}
+```
+- **Validation**: Asserts `amountPaise <= outstandingBalancePaise`. Overpayment is rejected with `400 PAYMENT_EXCEEDS_OUTSTANDING_BALANCE`.
+
+### 8.6 Financial Summary
+#### `GET /api/v1/groups/:groupId/finance/summary`
+- **Auth**: Authenticated + Group Member
+- **Query Filters**: `?farmId=...&cropId=...&startDate=...&endDate=...`
+- **Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "accrual": {
+      "totalSalesPaise": 8550000,
+      "totalExpensesPaise": 550000,
+      "netProfitPaise": 8000000
+    },
+    "cashFlow": {
+      "totalInflowPaise": 4000000,
+      "totalOutflowPaise": 350000,
+      "netCashFlowPaise": 3650000
+    },
+    "receivablesPaise": 4550000,
+    "payablesPaise": 200000,
+    "categoryBreakdown": [
+      {
+        "categoryId": "cat-1",
+        "categoryNameMr": "खते व सेंद्रिय खते",
+        "categoryNameEn": "Fertilizers & Manure",
+        "totalPaise": 350000,
+        "percentage": 63.6
+      }
+    ]
+  }
+}
+```
+

@@ -33,7 +33,11 @@
     "createFamily": "नवीन गट तयार करा",
     "joinFamily": "गटात सामील व्हा",
     "profile": "माझे खाते",
-    "switchGroup": "गट बदला"
+    "switchGroup": "गट बदला",
+    "expenses": "खर्च",
+    "harvests": "काढणी",
+    "sales": "विक्री",
+    "summary": "नफा-तोटा"
   },
   "auth": {
     "welcomeTitle": "शेतीबुक मध्ये आपले स्वागत आहे",

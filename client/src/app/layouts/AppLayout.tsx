@@ -4,7 +4,7 @@ import { useAuth } from '../providers/AuthProvider';
 import { Header } from '../../components/common/Header';
 import { Footer } from '../../components/common/Footer';
 import { useTranslation } from 'react-i18next';
-import { Users, Grid, Sprout, Activity, User } from 'lucide-react';
+import { Users, Grid, Sprout, Activity, User, TrendingUp } from 'lucide-react';
 
 export const AppLayout: React.FC = () => {
   const { user, selectedGroup, isLoading } = useAuth();
@@ -64,6 +64,13 @@ export const AppLayout: React.FC = () => {
           >
             <Activity className="w-5 h-5 mb-0.5" />
             <span>कामे</span>
+          </Link>
+          <Link
+            to="/finance/summary"
+            className="flex flex-col items-center py-1 px-2 text-[10px] font-semibold text-emerald-700 hover:text-emerald-800"
+          >
+            <TrendingUp className="w-5 h-5 mb-0.5" />
+            <span>हिशोब</span>
           </Link>
           <Link
             to="/profile"

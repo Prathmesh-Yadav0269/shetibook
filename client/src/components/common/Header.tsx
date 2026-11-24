@@ -60,6 +60,30 @@ export const Header: React.FC = () => {
             >
               कामे व उपक्रम
             </Link>
+            <Link
+              to="/expenses"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-brand-green hover:bg-slate-50 transition-colors"
+            >
+              खर्च
+            </Link>
+            <Link
+              to="/harvests"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-brand-green hover:bg-slate-50 transition-colors"
+            >
+              काढणी
+            </Link>
+            <Link
+              to="/sales"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-brand-green hover:bg-slate-50 transition-colors"
+            >
+              विक्री
+            </Link>
+            <Link
+              to="/finance/summary"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+            >
+              नफा-तोटा
+            </Link>
           </nav>
         )}
 

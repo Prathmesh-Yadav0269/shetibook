@@ -24,6 +24,16 @@ import { CropDetailPage } from '../../features/agriculture/pages/CropDetailPage'
 import { ActivityListPage } from '../../features/agriculture/pages/ActivityListPage';
 import { ActivityFormPage } from '../../features/agriculture/pages/ActivityFormPage';
 import { ActivityDetailPage } from '../../features/agriculture/pages/ActivityDetailPage';
+import { ExpenseListPage } from '../../features/finance/pages/ExpenseListPage';
+import { ExpenseFormPage } from '../../features/finance/pages/ExpenseFormPage';
+import { ExpenseDetailPage } from '../../features/finance/pages/ExpenseDetailPage';
+import { HarvestListPage } from '../../features/finance/pages/HarvestListPage';
+import { HarvestFormPage } from '../../features/finance/pages/HarvestFormPage';
+import { HarvestDetailPage } from '../../features/finance/pages/HarvestDetailPage';
+import { SaleListPage } from '../../features/finance/pages/SaleListPage';
+import { SaleFormPage } from '../../features/finance/pages/SaleFormPage';
+import { SaleDetailPage } from '../../features/finance/pages/SaleDetailPage';
+import { FinanceSummaryPage } from '../../features/finance/pages/FinanceSummaryPage';
 import { useAuth } from '../providers/AuthProvider';
 
 const HomeRedirect: React.FC = () => {
@@ -78,6 +88,20 @@ export const router = createBrowserRouter([
       { path: '/activities', element: <ActivityListPage /> },
       { path: '/activities/new', element: <ActivityFormPage /> },
       { path: '/activities/:activityId', element: <ActivityDetailPage /> },
+      // Financial & business management routes
+      { path: '/expenses', element: <ExpenseListPage /> },
+      { path: '/expenses/new', element: <ExpenseFormPage /> },
+      { path: '/expenses/:expenseId', element: <ExpenseDetailPage /> },
+      { path: '/expenses/:expenseId/edit', element: <ExpenseFormPage /> },
+      { path: '/harvests', element: <HarvestListPage /> },
+      { path: '/harvests/new', element: <HarvestFormPage /> },
+      { path: '/harvests/:harvestId', element: <HarvestDetailPage /> },
+      { path: '/harvests/:harvestId/edit', element: <HarvestFormPage /> },
+      { path: '/sales', element: <SaleListPage /> },
+      { path: '/sales/new', element: <SaleFormPage /> },
+      { path: '/sales/:saleId', element: <SaleDetailPage /> },
+      { path: '/sales/:saleId/edit', element: <SaleFormPage /> },
+      { path: '/finance/summary', element: <FinanceSummaryPage /> },
     ],
   },
   {

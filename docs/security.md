@@ -159,3 +159,36 @@ ShetiBook distinguishes between application-level convention and genuine databas
 - Real-world farming activities record state transitions (`created`, `started`, `paused`, `resumed`, `completed`, `cancelled`) in `activity_events`.
 - Events are strictly append-only; existing timeline records cannot be modified or reordered.
 - Every event records the actor's user ID, preventing disputed claims regarding who performed agricultural operations.
+
+---
+
+## 11. Financial Integrity & Business Logic Controls (Phase 3)
+
+### 11.1 Monetary Integer Paise Precision Guard
+- Floating-point representations in financial software are susceptible to binary rounding anomalies (e.g. $0.1 + 0.2 = 0.30000000000000004$).
+- ShetiBook mandates integer paise (`INTEGER NOT NULL CHECK(amount_paise > 0)`) for every monetary column in the schema.
+- All backend calculations (totals, outstanding balances, profit/loss, cash flows) operate strictly with integer arithmetic.
+- Floating-point rounding occurs exclusively at the user display boundary.
+
+### 11.2 Multi-Tenant Family Financial Isolation
+- All financial routes (`/api/v1/groups/:groupId/expenses`, `harvests`, `sales`, `payments`, `finance`) mandate active group membership (`requireGroupMembership`).
+- Queries explicitly enforce `WHERE group_id = :groupId` on every financial read, write, and aggregation.
+- Attempts by authenticated members of Group B to read or record transactions against Group A are blocked with `403 FORBIDDEN_GROUP_ACCESS`.
+
+### 11.3 Overpayment Attack Prevention
+- Multi-installment payment systems must defend against overpayments that result in negative debt balances or fraudulent cash ledger distortion.
+- ShetiBook validates cumulative installments within database transactions:
+  $$\text{New Payment Amount} \le \text{Total Invoice Amount} - \sum \text{Existing Payments}$$
+- Excess payments are strictly rejected with `400 PAYMENT_EXCEEDS_OUTSTANDING_BALANCE`.
+- Negative payment values are rejected at Zod schema validation (`min(1)` paise).
+
+### 11.4 Inventory Overselling Guard
+- When recording a produce sale linked to a harvest (`harvest_id`), the service verifies available stock:
+  $$\text{Sale Quantity (kg)} \le \text{Harvest Quantity (kg)} - \sum \text{Existing Sales (kg)}$$
+- Sales exceeding available harvested stock are blocked with `400 SALE_QUANTITY_EXCEEDS_AVAILABLE_HARVEST`.
+
+### 11.5 Cross-Entity Parameter Tampering Defense
+- Financial records establish relationships with farms, crops, and harvests.
+- The service layer executes referential checks within the transaction ensuring that referenced `farm_id`, `crop_id`, and `harvest_id` belong strictly to the authenticated `group_id`.
+- Attempts to cross-reference entities belonging to other farming families fail with `404` or `400`.
+

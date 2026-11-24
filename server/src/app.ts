@@ -15,6 +15,13 @@ import {
   cropsRouter,
   activitiesRouter,
 } from './modules/agriculture/agriculture.routes.js';
+import {
+  expensesRouter,
+  harvestsRouter,
+  salesRouter,
+  paymentsRouter,
+  financeRouter,
+} from './modules/finance/finance.routes.js';
 import { getDatabaseClient } from './database/client.js';
 
 export const app = express();
@@ -75,6 +82,11 @@ app.use('/api/v1/groups/:groupId/farms/:farmId/plots', plotsRouter);
 app.use('/api/v1/groups/:groupId/plots', plotsRouter);
 app.use('/api/v1/groups/:groupId/crops', cropsRouter);
 app.use('/api/v1/groups/:groupId/activities', activitiesRouter);
+app.use('/api/v1/groups/:groupId/expenses', expensesRouter);
+app.use('/api/v1/groups/:groupId/harvests', harvestsRouter);
+app.use('/api/v1/groups/:groupId/sales', salesRouter);
+app.use('/api/v1/groups/:groupId/payments', paymentsRouter);
+app.use('/api/v1/groups/:groupId/finance', financeRouter);
 
 // 404 handler for unmatched routes
 app.use((_req, res) => {

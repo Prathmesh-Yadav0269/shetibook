@@ -33,7 +33,11 @@
     "createFamily": "Create New Group",
     "joinFamily": "Join Group",
     "profile": "My Account",
-    "switchGroup": "Switch Group"
+    "switchGroup": "Switch Group",
+    "expenses": "Expenses",
+    "harvests": "Harvests",
+    "sales": "Sales",
+    "summary": "Profit & Loss"
   },
   "auth": {
     "welcomeTitle": "Welcome to ShetiBook",
