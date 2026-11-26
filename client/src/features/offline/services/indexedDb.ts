@@ -138,6 +138,64 @@ export const getQuarantinedOperations = async (groupId: string): Promise<QueuedS
   });
 };
 
+/**
+ * Restores quarantined operations back to pending status after renewed authorization.
+ * Explicit action required by farmer; never automatically triggered on plain login.
+ */
+export const restoreQuarantinedOperations = async (groupId: string): Promise<number> => {
+  const db = await initIndexedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sync_queue', 'readwrite');
+    const store = tx.objectStore('sync_queue');
+    const index = store.index('groupId');
+    const req = index.getAll(groupId);
+
+    let restoredCount = 0;
+    req.onsuccess = () => {
+      const items: QueuedSyncOperation[] = req.result || [];
+      for (const item of items) {
+        if (item.status === 'quarantined') {
+          item.status = 'pending';
+          delete item.quarantineReason;
+          delete item.quarantinedAt;
+          store.put(item);
+          restoredCount++;
+        }
+      }
+    };
+
+    tx.oncomplete = () => resolve(restoredCount);
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+/**
+ * Permanently discards quarantined operations if the farmer explicitly requests it.
+ */
+export const deleteQuarantinedOperations = async (groupId: string): Promise<number> => {
+  const db = await initIndexedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sync_queue', 'readwrite');
+    const store = tx.objectStore('sync_queue');
+    const index = store.index('groupId');
+    const req = index.getAll(groupId);
+
+    let deletedCount = 0;
+    req.onsuccess = () => {
+      const items: QueuedSyncOperation[] = req.result || [];
+      for (const item of items) {
+        if (item.status === 'quarantined') {
+          store.delete(item.id);
+          deletedCount++;
+        }
+      }
+    };
+
+    tx.oncomplete = () => resolve(deletedCount);
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
 export const clearGroupQueue = async (groupId: string): Promise<void> => {
   const db = await initIndexedDb();
   return new Promise((resolve, reject) => {

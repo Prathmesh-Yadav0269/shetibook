@@ -100,8 +100,8 @@ export const createActivitySchema = z.object({
 });
 
 export const transitionActivitySchema = z.object({
-  transition: z.enum(['start', 'pause', 'resume', 'complete', 'cancel'], {
-    errorMap: () => ({ message: 'अवैध कृती (start, pause, resume, complete, cancel पैकी एक असावी)' }),
+  transition: z.enum(['start', 'pause', 'resume', 'complete'], {
+    errorMap: () => ({ message: 'अवैध कृती (start, pause, resume, complete पैकी एक असावी)' }),
   }),
   notes: z.string().trim().max(500).optional().nullable(),
 });

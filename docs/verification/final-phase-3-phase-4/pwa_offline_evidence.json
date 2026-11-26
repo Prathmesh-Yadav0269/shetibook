@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-11-26T17:42:38.476Z",
+  "browser": "Google Chrome (Headless)",
+  "appUrl": "http://localhost:5088/",
+  "results": [
+    {
+      "test": "Service Worker Registration & Activation",
+      "passed": true,
+      "details": {
+        "supported": true,
+        "registered": true,
+        "scope": "http://localhost:5088/",
+        "state": "activated",
+        "active": true
+      }
+    },
+    {
+      "test": "App Shell Precache Verification (shetibook-shell-v1)",
+      "passed": true,
+      "details": {
+        "cacheNames": [
+          "shetibook-shell-v1"
+        ],
+        "details": {
+          "shetibook-shell-v1": [
+            "/",
+            "/index.html",
+            "/manifest.webmanifest",
+            "/favicon.svg",
+            "/icon-192.svg",
+            "/icon-512.svg"
+          ]
+        }
+      }
+    },
+    {
+      "test": "Zero Authenticated API Caching in CacheStorage",
+      "passed": true,
+      "details": {
+        "zeroApiCached": true,
+        "apiEntries": []
+      }
+    },
+    {
+      "test": "Offline App Shell Reload from Service Worker Cache",
+      "passed": true,
+      "screenshot": "38_pwa_offline_reload_verified.png",
+      "details": {
+        "rootExists": true,
+        "hasChildren": true,
+        "title": "शेतीबुक (ShetiBook) — तुमची शेती, तुमचा हिशोब, तुमच्या हातात!",
+        "bodySnippet": "शेतीबुक\n\nतुमची शेती, तुमचा हिशोब, तुमच्या हातात!\n\nमराठी\nEnglish\nलॉगिन करा\n\nतुमच्या खात्यात प्रवेश करण्यासाठी मोबाईल नंबर आणि पासवर्ड टाका\n\nमोबाईल नंबर"
+      }
+    },
+    {
+      "test": "Browser IndexedDB Queue & 403 Quarantine Isolation",
+      "passed": true,
+      "screenshot": "39_pwa_service_worker_active.png",
+      "details": {
+        "pendingCount": 0,
+        "quarantinedCount": 1,
+        "quarantinedItem": {
+          "id": "test_op_001",
+          "groupId": "grp_01",
+          "entityType": "expense",
+          "action": "create",
+          "payload": {
+            "amountPaise": 50000
+          },
+          "status": "quarantined",
+          "quarantineReason": "MEMBER_REVOKED_403",
+          "quarantinedAt": "2026-11-26T17:42:44.875Z",
+          "createdAt": "2026-11-26T17:42:44.875Z"
+        }
+      }
+    }
+  ]
+}

@@ -4,6 +4,8 @@ import {
   removeOperations,
   quarantineGroupOperations,
   getQuarantinedOperations,
+  restoreQuarantinedOperations,
+  deleteQuarantinedOperations,
   QueuedSyncOperation,
 } from './indexedDb';
 import { api } from '../../../services/api/apiClient';
@@ -111,5 +113,15 @@ export const syncService = {
       }
       throw err;
     }
+  },
+
+  // Explicitly restore quarantined operations after renewed authorization
+  restoreQuarantined: async (groupId: string): Promise<number> => {
+    return await restoreQuarantinedOperations(groupId);
+  },
+
+  // Discard quarantined operations if user chooses to dismiss them
+  discardQuarantined: async (groupId: string): Promise<number> => {
+    return await deleteQuarantinedOperations(groupId);
   },
 };

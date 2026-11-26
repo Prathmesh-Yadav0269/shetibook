@@ -545,4 +545,290 @@ describe('ShetiBook Phase 3 - Financial & Business Management Integration Tests'
     expect(harvDetail.body.data.soldQuantity).toBe(2);
     expect(harvDetail.body.data.remainingQuantity).toBe(0);
   });
+
+  it('Step 12: Controlled Multi-Crop Financial Verification Scenario (Task D Specification)', async () => {
+    // 1. Setup Farm A and 2 Crops (Sugarcane & Soybean)
+    const farmARes = await request(app)
+      .post(`/api/v1/groups/${groupId}/farms`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmName: 'Farm A (शेत अ)',
+        village: 'सासवड',
+        areaValue: 10,
+        areaUnit: 'acre',
+      });
+    expect(farmARes.status).toBe(201);
+    const farmAId = farmARes.body.data.id;
+
+    const plotARes = await request(app)
+      .post(`/api/v1/groups/${groupId}/farms/${farmAId}/plots`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        plotName: 'प्लॉट १ (मिश्र पीक)',
+        areaValue: 8,
+        areaUnit: 'acre',
+        cultivationMode: 'intercropping',
+      });
+    expect(plotARes.status).toBe(201);
+    const plotAId = plotARes.body.data.id;
+
+    // Crop 1: Sugarcane
+    const sugarRes = await request(app)
+      .post(`/api/v1/groups/${groupId}/crops`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId: farmAId,
+        plotId: plotAId,
+        cropTypeId: 'crop_sugarcane',
+        cropSeasonId: 'season_perennial',
+        cropNameCustom: 'ऊस (Sugarcane)',
+        sowingDate: '2026-06-01',
+      });
+    expect(sugarRes.status).toBe(201);
+    const sugarcaneId = sugarRes.body.data.id;
+
+    // Crop 2: Soybean
+    const soyRes = await request(app)
+      .post(`/api/v1/groups/${groupId}/crops`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId: farmAId,
+        plotId: plotAId,
+        cropTypeId: 'crop_soybean',
+        cropSeasonId: 'season_kharif',
+        cropNameCustom: 'सोयाबीन (Soybean)',
+        sowingDate: '2026-06-15',
+      });
+    expect(soyRes.status).toBe(201);
+    const soybeanId = soyRes.body.data.id;
+
+    // 2. Expenses with controlled allocations:
+    // Expense 1: Fertilizer ₹4,000 (Sugarcane ₹3,000, Soybean ₹500, General overhead ₹500)
+    const exp1Res = await request(app)
+      .post(`/api/v1/groups/${groupId}/expenses`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId: farmAId,
+        expenseCategoryId: 'cat_fertilizers',
+        amountPaise: 400000,
+        expenseDate: '2026-07-01',
+        description: 'रासायनिक व सेंद्रिय खते',
+        allocations: [
+          { cropId: sugarcaneId, amountPaise: 300000 },
+          { cropId: soybeanId, amountPaise: 50000 },
+        ],
+      });
+    expect(exp1Res.status).toBe(201);
+    const exp1Id = exp1Res.body.data.id;
+
+    // Expense 2: Labour ₹3,000 (Sugarcane ₹1,000, Soybean ₹1,000, General overhead ₹1,000)
+    const exp2Res = await request(app)
+      .post(`/api/v1/groups/${groupId}/expenses`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId: farmAId,
+        expenseCategoryId: 'cat_labour',
+        amountPaise: 300000,
+        expenseDate: '2026-07-15',
+        description: 'मजुरी खर्च',
+        allocations: [
+          { cropId: sugarcaneId, amountPaise: 100000 },
+          { cropId: soybeanId, amountPaise: 100000 },
+        ],
+      });
+    expect(exp2Res.status).toBe(201);
+    const exp2Id = exp2Res.body.data.id;
+
+    // Expense 3: Machinery ₹2,000 (General farm overhead ₹2,000, unallocated to crops)
+    const exp3Res = await request(app)
+      .post(`/api/v1/groups/${groupId}/expenses`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId: farmAId,
+        expenseCategoryId: 'cat_machinery',
+        amountPaise: 200000,
+        expenseDate: '2026-08-01',
+        description: 'ट्रॅक्टर मशागत (शेत ओव्हरहेड)',
+        allocations: [],
+      });
+    expect(exp3Res.status).toBe(201);
+    const exp3Id = exp3Res.body.data.id;
+
+    // 3. Invoiced Sales:
+    // Sale 1: Sugarcane ₹12,000
+    const sale1Res = await request(app)
+      .post(`/api/v1/groups/${groupId}/sales`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId: farmAId,
+        cropId: sugarcaneId,
+        saleDate: '2026-10-01',
+        quantity: 10,
+        unit: 'quintal',
+        ratePaise: 120000,
+        totalAmountPaise: 1200000,
+        buyerName: 'साखर कारखाना',
+      });
+    expect(sale1Res.status).toBe(201);
+    const sale1Id = sale1Res.body.data.id;
+
+    // Sale 2: Soybean ₹6,000
+    const sale2Res = await request(app)
+      .post(`/api/v1/groups/${groupId}/sales`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId: farmAId,
+        cropId: soybeanId,
+        saleDate: '2026-10-15',
+        quantity: 5,
+        unit: 'quintal',
+        ratePaise: 120000,
+        totalAmountPaise: 600000,
+        buyerName: 'कृषी उत्पन्न बाजार समिती',
+      });
+    expect(sale2Res.status).toBe(201);
+    const sale2Id = sale2Res.body.data.id;
+
+    // 4. Payments:
+    // Sugarcane sale payment received: ₹5,000
+    await request(app)
+      .post(`/api/v1/groups/${groupId}/payments`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        saleId: sale1Id,
+        paymentType: 'income',
+        paymentMethod: 'bank_transfer',
+        amountPaise: 500000,
+        paymentDate: '2026-10-05',
+      });
+
+    // Soybean sale payment received: ₹2,000
+    await request(app)
+      .post(`/api/v1/groups/${groupId}/payments`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        saleId: sale2Id,
+        paymentType: 'income',
+        paymentMethod: 'cash',
+        amountPaise: 200000,
+        paymentDate: '2026-10-20',
+      });
+
+    // Fertilizer expense payment: ₹2,000
+    await request(app)
+      .post(`/api/v1/groups/${groupId}/payments`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        expenseId: exp1Id,
+        paymentType: 'expense',
+        paymentMethod: 'bank_transfer',
+        amountPaise: 200000,
+        paymentDate: '2026-07-05',
+      });
+
+    // Labour expense payment: ₹1,000
+    await request(app)
+      .post(`/api/v1/groups/${groupId}/payments`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        expenseId: exp2Id,
+        paymentType: 'expense',
+        paymentMethod: 'cash',
+        amountPaise: 100000,
+        paymentDate: '2026-07-20',
+      });
+
+    // Machinery expense payment: ₹500
+    await request(app)
+      .post(`/api/v1/groups/${groupId}/payments`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        expenseId: exp3Id,
+        paymentType: 'expense',
+        paymentMethod: 'cash',
+        amountPaise: 50000,
+        paymentDate: '2026-08-05',
+      });
+
+    // 5. Independently Reconcile Farm A Calculations:
+    const farmSummaryRes = await request(app)
+      .get(`/api/v1/groups/${groupId}/finance/summary?farmId=${farmAId}`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie);
+
+    expect(farmSummaryRes.status).toBe(200);
+    const farmSummary = farmSummaryRes.body.data;
+
+    // Expected Farm Totals:
+    // Accrual Revenue: ₹18,000 (1,800,000 paise)
+    expect(farmSummary.totalSalesPaise).toBe(1800000);
+    // Accrual Expenses: ₹9,000 (900,000 paise)
+    expect(farmSummary.totalExpensesPaise).toBe(900000);
+    // Accrual Net Profit: ₹9,000 (900,000 paise)
+    expect(farmSummary.netProfitPaise).toBe(900000);
+
+    // Cash Inflow: ₹7,000 (700,000 paise)
+    expect(farmSummary.cashInflowPaise).toBe(700000);
+    // Cash Outflow: ₹3,500 (350,000 paise)
+    expect(farmSummary.cashOutflowPaise).toBe(350000);
+    // Net Cash Flow: ₹3,500 (350,000 paise)
+    expect(farmSummary.netCashFlowPaise).toBe(350000);
+
+    // Receivables: ₹11,000 (1,100,000 paise)
+    expect(farmSummary.receivablesPaise).toBe(1100000);
+    // Payables: ₹5,500 (550,000 paise)
+    expect(farmSummary.payablesPaise).toBe(550000);
+
+    // Mathematical reconciliation check: Profit - CashFlow === Receivables - Payables
+    expect(farmSummary.netProfitPaise - farmSummary.netCashFlowPaise).toBe(
+      farmSummary.receivablesPaise - farmSummary.payablesPaise
+    );
+
+    // 6. Crop-Level Direct Profitability Reports:
+    const cropReportsRes = await request(app)
+      .get(`/api/v1/groups/${groupId}/reports?type=crops&farmId=${farmAId}`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie);
+
+    expect(cropReportsRes.status).toBe(200);
+    const crops = cropReportsRes.body.data;
+
+    const sugarReport = crops.find((c: any) => c.id === sugarcaneId);
+    expect(sugarReport).toBeDefined();
+    // Sugarcane direct allocated expense: ₹3,000 + ₹1,000 = ₹4,000 (400,000 paise)
+    expect(sugarReport.allocatedExpensePaise).toBe(400000);
+    // Sugarcane sales revenue: ₹12,000 (1,200,000 paise)
+    expect(sugarReport.salesRevenuePaise).toBe(1200000);
+    // Sugarcane direct profit: ₹12,000 - ₹4,000 = ₹8,000 (800,000 paise)
+    expect(sugarReport.netProfitPaise).toBe(800000);
+
+    const soyReport = crops.find((c: any) => c.id === soybeanId);
+    expect(soyReport).toBeDefined();
+    // Soybean direct allocated expense: ₹500 + ₹1,000 = ₹1,500 (150,000 paise)
+    expect(soyReport.allocatedExpensePaise).toBe(150000);
+    // Soybean sales revenue: ₹6,000 (600,000 paise)
+    expect(soyReport.salesRevenuePaise).toBe(600000);
+    // Soybean direct profit: ₹6,000 - ₹1,500 = ₹4,500 (450,000 paise)
+    expect(soyReport.netProfitPaise).toBe(450000);
+
+    // 7. General Farm Overhead Verification:
+    // General overhead = Total Farm Expenses (₹9,000) - Sum of Direct Crop Allocations (₹4,000 + ₹1,500 = ₹5,500) = ₹3,500
+    const totalCropAllocated = sugarReport.allocatedExpensePaise + soyReport.allocatedExpensePaise;
+    const generalOverheadPaise = farmSummary.totalExpensesPaise - totalCropAllocated;
+    expect(generalOverheadPaise).toBe(350000); // Exactly ₹3,500
+  });
 });

@@ -399,4 +399,139 @@ describe('ShetiBook Phase 4 - Notifications & Reminders Integration Tests', () =
     // Stage 2 and 3 are now cancelled
     expect(cancelledCheck.rows.length).toBe(2);
   });
+
+  it('8. Farmer response/acknowledgement suppresses Stage 3 family escalation', async () => {
+    const client = getDatabaseClient();
+
+    // Create activity
+    const actRes = await request(app)
+      .post(`/api/v1/groups/${groupId}/activities`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId,
+        plotId,
+        cropId,
+        activityTypeId: 'act_weeding',
+        description: 'खुरपणी काम (प्रतिसाद चाचणी)',
+      });
+    const actId = actRes.body.data.id;
+
+    // Start activity (sets in_progress and schedules reminders)
+    await request(app)
+      .post(`/api/v1/groups/${groupId}/activities/${actId}/transition`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({ transition: 'start' });
+
+    // Deliver Stage 1 (set due_at in past)
+    await client.execute({
+      sql: "UPDATE activity_reminders SET due_at = '2026-11-26T05:59:00.000Z' WHERE activity_id = ? AND stage = 1",
+      args: [actId],
+    });
+    await notificationService.processDueReminders();
+
+    // Verify Stage 1 sent
+    const st1 = await client.execute({
+      sql: 'SELECT status FROM activity_reminders WHERE activity_id = ? AND stage = 1',
+      args: [actId],
+    });
+    expect(String(st1.rows[0].status)).toBe('sent');
+
+    // Farmer responds / acknowledges the reminder
+    const ackRes = await request(app)
+      .post(`/api/v1/groups/${groupId}/notifications/reminders/${actId}/acknowledge`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({ note: 'काम वेगाने चालू आहे, काळजी नसावी' });
+
+    expect(ackRes.status).toBe(200);
+    expect(ackRes.body.data.success).toBe(true);
+
+    // Verify persisted event in activity_events
+    const eventRow = await client.execute({
+      sql: "SELECT event_type, notes FROM activity_events WHERE activity_id = ? AND notes LIKE '%[reminder_acknowledged]%'",
+      args: [actId],
+    });
+    expect(eventRow.rows.length).toBe(1);
+    expect(String(eventRow.rows[0].notes)).toContain('काळजी नसावी');
+
+    // Verify Stage 3 reminder is cancelled and NOT escalated
+    const st3 = await client.execute({
+      sql: 'SELECT status FROM activity_reminders WHERE activity_id = ? AND stage = 3',
+      args: [actId],
+    });
+    expect(String(st3.rows[0].status)).toBe('cancelled');
+
+    // Run processDueReminders with due_at in past for Stage 3
+    await client.execute({
+      sql: "UPDATE activity_reminders SET due_at = '2026-11-26T05:59:00.000Z' WHERE activity_id = ? AND stage = 3",
+      args: [actId],
+    });
+    await notificationService.processDueReminders();
+
+    // Verify NO family escalation notification was generated for the other member
+    const memberNotifs = await client.execute({
+      sql: "SELECT id FROM notifications WHERE group_id = ? AND type = 'activity_escalation' AND data LIKE ?",
+      args: [groupId, `%${actId}%`],
+    });
+    expect(memberNotifs.rows.length).toBe(0);
+  });
+
+  it('9. Server restart recovery processes due reminders without duplicating already sent notifications', async () => {
+    const client = getDatabaseClient();
+
+    // Create activity
+    const actRes = await request(app)
+      .post(`/api/v1/groups/${groupId}/activities`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId,
+        plotId,
+        cropId,
+        activityTypeId: 'act_fertilizer',
+        description: 'पुन्हा खत देणे (रीस्टार्ट रिकव्हरी)',
+      });
+    const actId = actRes.body.data.id;
+
+    // Start activity (sets in_progress and schedules reminders)
+    await request(app)
+      .post(`/api/v1/groups/${groupId}/activities/${actId}/transition`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({ transition: 'start' });
+
+    const userRow = await client.execute({ sql: 'SELECT id FROM users WHERE phone_number = ?', args: [ownerPhone] });
+    const actorId = String(userRow.rows[0].id);
+
+    // Simulate server sleep: Stage 1 became due 30 minutes ago
+    const pastTime = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    await client.execute({
+      sql: 'UPDATE activity_reminders SET due_at = ? WHERE activity_id = ? AND stage = 1',
+      args: [pastTime, actId],
+    });
+
+    // 1st tick (server wakes up)
+    const tick1 = await notificationService.processDueReminders();
+    expect(tick1).toBeGreaterThanOrEqual(1);
+
+    const count1 = await client.execute({
+      sql: "SELECT COUNT(*) as cnt FROM notifications WHERE group_id = ? AND user_id = ? AND data LIKE ?",
+      args: [groupId, actorId, `%${actId}%`],
+    });
+    const initialNotifCount = Number(count1.rows[0].cnt);
+    expect(initialNotifCount).toBe(1);
+
+    // 2nd tick (subsequent poll/restart without new events)
+    const tick2 = await notificationService.processDueReminders();
+    expect(tick2).toBe(0);
+
+    const count2 = await client.execute({
+      sql: "SELECT COUNT(*) as cnt FROM notifications WHERE group_id = ? AND user_id = ? AND data LIKE ?",
+      args: [groupId, actorId, `%${actId}%`],
+    });
+    // Strict zero-duplication check
+    expect(Number(count2.rows[0].cnt)).toBe(initialNotifCount);
+  });
 });

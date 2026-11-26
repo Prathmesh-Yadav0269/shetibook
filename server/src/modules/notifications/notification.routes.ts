@@ -134,4 +134,28 @@ router.post('/push-subscription', async (req: Request, res: Response, next: Next
   }
 });
 
+// 7. Acknowledge activity reminder (Farmer response that suppresses family escalation)
+router.post('/reminders/:activityId/acknowledge', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const groupId = getParam(req, 'groupId');
+    const activityId = getParam(req, 'activityId');
+    const userId = req.user!.id;
+    const { note } = req.body;
+
+    const result = await notificationService.acknowledgeActivityReminder(
+      activityId,
+      userId,
+      groupId,
+      note
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export { router as notificationRouter };

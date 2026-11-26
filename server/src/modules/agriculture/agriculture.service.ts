@@ -1552,7 +1552,7 @@ export class AgricultureService {
     groupId: string,
     activityId: string,
     userId: string,
-    transition: 'start' | 'pause' | 'resume' | 'complete' | 'cancel',
+    transition: 'start' | 'pause' | 'resume' | 'complete',
     notes?: string | null
   ) {
     const client = getDatabaseClient();
@@ -1569,7 +1569,7 @@ export class AgricultureService {
     const current = activityResult.rows[0];
     const currentStatus = String(current.status);
 
-    // Validate state transitions
+    // Validate state transitions (SRS approved lifecycle: pending -> in_progress <-> paused -> completed)
     let nextStatus: string;
     if (transition === 'start') {
       if (currentStatus !== 'pending') {
@@ -1591,11 +1591,6 @@ export class AgricultureService {
         throw new AppError(`Cannot complete activity that is in '${currentStatus}' status.`, 400, 'INVALID_TRANSITION');
       }
       nextStatus = 'completed';
-    } else if (transition === 'cancel') {
-      if (currentStatus === 'completed' || currentStatus === 'cancelled') {
-        throw new AppError(`Activity is already finished and cannot be cancelled.`, 400, 'ACTIVITY_TERMINAL_STATE');
-      }
-      nextStatus = 'cancelled';
     } else {
       throw new AppError('Invalid transition requested.', 400, 'INVALID_TRANSITION');
     }
@@ -1609,7 +1604,6 @@ export class AgricultureService {
       pause: 'paused',
       resume: 'resumed',
       complete: 'completed',
-      cancel: 'cancelled',
     };
     const eventType = eventTypeMap[transition] || transition;
 
@@ -1643,7 +1637,7 @@ export class AgricultureService {
         await this.notificationService.pauseActivityReminders(activityId);
       } else if (transition === 'resume') {
         await this.notificationService.resumeActivityReminders(activityId, now);
-      } else if (transition === 'complete' || transition === 'cancel') {
+      } else if (transition === 'complete') {
         await this.notificationService.cancelActivityReminders(activityId);
       }
     } catch (reminderErr) {

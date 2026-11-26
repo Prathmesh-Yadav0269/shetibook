@@ -372,6 +372,60 @@ export class NotificationService {
   }
 
   /**
+   * Farmer acknowledges reminder or logs progress, which persists an activity event
+   * and cancels upcoming family escalation (Stage 3).
+   */
+  async acknowledgeActivityReminder(
+    activityId: string,
+    actorId: string,
+    groupId: string,
+    responseNote?: string
+  ) {
+    const client = getDatabaseClient();
+    const now = new Date().toISOString();
+    const eventId = crypto.randomUUID();
+
+    const txn = await client.transaction('write');
+    try {
+      // 1. Persist response event in activity_events audit log
+      // Conforms to existing event_type CHECK constraint ('resumed') with tag in notes
+      await txn.execute({
+        sql: `
+          INSERT INTO activity_events (id, activity_id, group_id, actor_id, event_type, event_at, notes)
+          VALUES (?, ?, ?, ?, 'resumed', ?, ?)
+        `,
+        args: [
+          eventId,
+          activityId,
+          groupId,
+          actorId,
+          now,
+          `[reminder_acknowledged] ${responseNote?.trim() || 'काम चालू आहे (Work acknowledged in progress)'}`,
+        ],
+      });
+
+      // 2. Suppress/Cancel pending Stage 3 family escalation
+      await txn.execute({
+        sql: "UPDATE activity_reminders SET status = 'cancelled', updated_at = ? WHERE activity_id = ? AND stage = 3 AND status = 'pending'",
+        args: [now, activityId],
+      });
+
+      // 3. Mark in-app reminders for this activity as read
+      await txn.execute({
+        sql: "UPDATE notifications SET is_read = 1, read_at = ? WHERE group_id = ? AND user_id = ? AND type = 'activity_reminder'",
+        args: [now, groupId, actorId],
+      });
+
+      await txn.commit();
+      logger.info('Activity reminder acknowledged and escalation suppressed', { activityId, actorId });
+      return { success: true, activityId, acknowledgedAt: now };
+    } catch (err) {
+      await txn.rollback();
+      throw err;
+    }
+  }
+
+  /**
    * Processes all due reminders. Can be triggered by background timer or on-demand server tick.
    * Handles server sleep / restart recovery idempotently.
    */
@@ -447,6 +501,37 @@ export class NotificationService {
             ],
           });
         } else if (stage === 3) {
+          // Check if farmer responded or logged activity updates since Stage 1 was sent or acknowledged
+          const responseCheck = await txn.execute({
+            sql: `
+              SELECT COUNT(*) as eventCount
+              FROM activity_events
+              WHERE activity_id = ? AND (
+                notes LIKE '%[reminder_acknowledged]%'
+                OR (
+                  event_at >= (
+                    SELECT COALESCE(sent_at, '9999-12-31')
+                    FROM activity_reminders
+                    WHERE activity_id = ? AND stage = 1
+                  ) AND event_type IN ('completed', 'paused', 'resumed')
+                )
+              )
+            `,
+            args: [activityId, activityId],
+          });
+
+          if (Number(responseCheck.rows[0].eventCount) > 0) {
+            // Farmer responded or updated activity: cancel Stage 3 reminder without escalating to family
+            await txn.execute({
+              sql: "UPDATE activity_reminders SET status = 'cancelled', updated_at = ? WHERE id = ?",
+              args: [now, reminderId],
+            });
+            await txn.commit();
+            processedCount++;
+            logger.info('Stage 3 family escalation suppressed: farmer response detected', { activityId });
+            continue;
+          }
+
           // Stage 3: Family escalation - notify other active group members
           const membersRes = await txn.execute({
             sql: `
