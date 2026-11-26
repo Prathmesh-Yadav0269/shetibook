@@ -9,8 +9,10 @@ import {
   calculateAreaBreakdown,
   AreaUnit,
 } from '../../utils/area.js';
+import { NotificationService } from '../notifications/notification.service.js';
 
 export class AgricultureService {
+  private notificationService = new NotificationService();
   // ==========================================
   // 1. FARMS
   // ==========================================
@@ -1631,6 +1633,21 @@ export class AgricultureService {
     } catch (err) {
       await txn.rollback();
       throw err;
+    }
+
+    // Phase 4: Activity Reminder Lifecycle Hooks
+    try {
+      if (transition === 'start') {
+        await this.notificationService.scheduleActivityReminders(activityId, groupId, userId, now);
+      } else if (transition === 'pause') {
+        await this.notificationService.pauseActivityReminders(activityId);
+      } else if (transition === 'resume') {
+        await this.notificationService.resumeActivityReminders(activityId);
+      } else if (transition === 'complete' || transition === 'cancel') {
+        await this.notificationService.cancelActivityReminders(activityId);
+      }
+    } catch (reminderErr) {
+      logger.error('Failed to update activity reminders', { activityId, transition, reminderErr });
     }
 
     logger.info('Activity transitioned', { activityId, from: currentStatus, to: nextStatus, transition });

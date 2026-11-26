@@ -85,6 +85,8 @@ You should see:
 [Migrations] Successfully applied: 003_agricultural_management.sql
 [Migrations] Applying: 004_financial_management.sql...
 [Migrations] Successfully applied: 004_financial_management.sql
+[Migrations] Applying: 005_intelligence_notifications_sync.sql...
+[Migrations] Successfully applied: 005_intelligence_notifications_sync.sql
 [Migrations] Database is up to date.
 Migrations complete.
 ```
@@ -108,16 +110,24 @@ Demo User Credentials:
 
 ## 7. Start the Development Servers
 
-Open two terminal windows:
+### Option A: Unified Single Command (Recommended)
+You can start both backend server (port 5000) and frontend client (port 3000) concurrently with a single command from repository root:
 
-### Terminal 1: Backend Server (Port 5000)
+```bash
+npm run dev
+```
+
+### Option B: Separate Terminals
+Alternatively, open two terminal windows:
+
+#### Terminal 1: Backend Server (Port 5000)
 ```bash
 npm run dev:server
 ```
 
 Verify backend health at: [http://localhost:5000/health](http://localhost:5000/health)
 
-### Terminal 2: Frontend Client (Port 3000)
+#### Terminal 2: Frontend Client (Port 3000)
 ```bash
 npm run dev:client
 ```
@@ -129,7 +139,7 @@ Open your browser at: [http://localhost:3000](http://localhost:3000)
 ## 8. Run Quality & Verification Checks
 
 ```bash
-# 1. Run automated test suite (78 automated tests across 7 suites)
+# 1. Run automated test suite (96 automated tests across 10 suites)
 npm run test:server
 
 # 2. Strict TypeScript checks across monorepo

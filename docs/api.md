@@ -552,3 +552,89 @@ Or for errors:
 }
 ```
 
+---
+
+## 9. Phase 4 — Intelligence, Notifications & Offline Sync Endpoints
+
+### 9.1 Dashboard
+#### `GET /api/v1/groups/:groupId/dashboard`
+- **Auth**: Authenticated + Group Member
+- **Query Filters**: `?farmId=...&cropId=...&startDate=...&endDate=...`
+- **Response**: Aggregated farm land metrics (total acres, gunthas, hectares, cultivated area), crop status breakdown, in-progress activities count, recent activity timeline, and key financial summaries.
+
+### 9.2 Analytics & Reports
+#### `GET /api/v1/groups/:groupId/reports`
+- **Auth**: Authenticated + Group Member
+- **Query Parameters**:
+  - `type`: `'farms'` | `'crops'` | `'monthly'` | `'categories'`
+  - `farmId`: Optional filter by farm ID
+- **Response**: Tailored analytical dataset:
+  - `type=farms`: Farm area breakdown, active crops, total expenses, total sales, net profit.
+  - `type=crops`: Crop variety, allocated expenses, sales revenue, harvested vs sold quantity, net profit.
+  - `type=monthly`: 12-month time-series comparing sales and expenses.
+  - `type=categories`: Expense breakdown per category with count and percentage.
+
+### 9.3 Reports CSV Export (UTF-8 BOM Sanitized)
+#### `GET /api/v1/groups/:groupId/reports/export`
+- **Auth**: Authenticated + Group Member
+- **Query Parameters**:
+  - `dataset`: `'expenses'` | `'sales'` | `'harvests'` | `'farms'`
+  - `farmId`: Optional filter
+- **Headers**:
+  - `Content-Type`: `text/csv; charset=utf-8`
+  - `Content-Disposition`: `attachment; filename="shetibook_<dataset>_<date>.csv"`
+- **Security & Integrity**:
+  - Byte Order Mark (`\uFEFF`) prepended for Excel Devanagari script compatibility.
+  - Strict CSV Formula Injection sanitization: cells beginning with `=`, `+`, `-`, `@`, `\t`, `\r` are prefixed with `'` to prevent spreadsheet command execution.
+
+### 9.4 Notifications & Reminders
+#### `GET /api/v1/groups/:groupId/notifications`
+- **Auth**: Authenticated + Group Member
+- **Query Parameters**: `?unreadOnly=true`
+- **Response**: List of user notifications, unread count, and triggers an on-demand background reminder check.
+
+#### `PATCH /api/v1/groups/:groupId/notifications/:notificationId/read`
+- **Auth**: Authenticated + Group Member
+- **Response**: Marks specified notification as read.
+
+#### `POST /api/v1/groups/:groupId/notifications/mark-all-read`
+- **Auth**: Authenticated + Group Member
+- **Response**: Marks all user notifications within this group as read.
+
+### 9.5 Notification Preferences & Web Push
+#### `GET /api/v1/groups/:groupId/notifications/preferences`
+- **Auth**: Authenticated + Group Member
+- **Response**: Current user preference toggles (`activityReminders`, `familyEscalations`, `financialAlerts`, `webPushEnabled`).
+
+#### `PUT /api/v1/groups/:groupId/notifications/preferences`
+- **Auth**: Authenticated + Group Member
+- **Request Body**: Partial preference updates.
+
+#### `POST /api/v1/groups/:groupId/notifications/push-subscription`
+- **Auth**: Authenticated + Group Member
+- **Request Body**: `{ "endpoint": "...", "p256dh": "...", "auth": "..." }`
+- **Response**: Saves or updates browser Web Push API registration.
+
+### 9.6 Offline Batch Synchronization
+#### `POST /api/v1/groups/:groupId/sync`
+- **Auth**: Authenticated + Active Group Member
+- **Request Body**:
+```json
+{
+  "deviceId": "client-uuid",
+  "deviceName": "Chrome on Android",
+  "operations": [
+    {
+      "clientOperationId": "op-uuid-1",
+      "entityType": "expense",
+      "action": "create",
+      "payload": { "farmId": "...", "amountPaise": 50000, ... },
+      "createdAt": "2026-11-26T10:00:00Z"
+    }
+  ]
+}
+```
+- **Integrity & Security**:
+  - Validates active membership; removed members are rejected with `403 FORBIDDEN` and local queues are cleared.
+  - Idempotent execution using `clientOperationId`: duplicate attempts return prior result without duplicate database rows.
+

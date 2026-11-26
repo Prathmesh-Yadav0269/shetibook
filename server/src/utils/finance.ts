@@ -7,8 +7,11 @@ export type HarvestUnit = 'kg' | 'quintal' | 'tonne';
  */
 export function toPaise(rupees: number | string): number {
   const num = typeof rupees === 'string' ? parseFloat(rupees) : rupees;
-  if (isNaN(num) || num < 0) {
+  if (isNaN(num) || num < 0 || !Number.isFinite(num)) {
     throw new Error('रक्कम वैध व सकारात्मक असावी (Amount must be non-negative).');
+  }
+  if (num > Number.MAX_SAFE_INTEGER / 100) {
+    throw new Error('रक्कम कमाल मर्यादेपेक्षा जास्त आहे (Amount exceeds maximum safe limit).');
   }
   return Math.round(num * 100);
 }

@@ -192,3 +192,44 @@ ShetiBook distinguishes between application-level convention and genuine databas
 - The service layer executes referential checks within the transaction ensuring that referenced `farm_id`, `crop_id`, and `harvest_id` belong strictly to the authenticated `group_id`.
 - Attempts to cross-reference entities belonging to other farming families fail with `404` or `400`.
 
+---
+
+## 12. Intelligence, Notifications & Data Export Security (Phase 4)
+
+### 12.1 Formula Injection (CSV Injection) Defense
+- Exporting financial and agricultural records to CSV poses a security risk if malicious strings are interpreted as executable formulas by spreadsheet software (e.g. Microsoft Excel, LibreOffice Calc).
+- ShetiBook sanitizes every exported CSV cell:
+  - If a cell value begins with dangerous formula triggers (`=`, `+`, `-`, `@`, `\t`, `\r`), it is prefixed with a single quotation mark (`'`).
+  - RFC 4180 compliant quotation escaping is applied to wrap commas, quotes, and newlines safely.
+  - The export includes a UTF-8 Byte Order Mark (`\uFEFF`) to enforce accurate UTF-8 encoding across Marathi and regional Marathi characters without spreadsheet misinterpretation.
+
+### 12.2 Intelligence & Aggregation Boundary Isolation
+- Dashboard and Report engines execute cross-table aggregation queries (`farms`, `plots`, `crops`, `activities`, `expenses`, `sales`).
+- All queries unconditionally enforce `WHERE group_id = :groupId` across every underlying subquery and join.
+- Members cannot inspect analytics, financial trends, or reminders belonging to unassociated groups.
+
+### 12.3 Notification Subscription Privacy & Scoping
+- Web push subscriptions (`push_subscriptions`) and device registrations (`device_registrations`) store endpoint URIs, auth secrets, and p256dh public keys.
+- Records are strictly bound to `(user_id, group_id)`.
+- Push notifications and reminder alerts are dispatched only to active group members who hold notification preferences enabled for the target category.
+
+---
+
+## 13. Offline-First & PWA Security Architecture (Phase 4)
+
+### 13.1 Zero Sensitive Auth Caching in Service Worker
+- The Progressive Web App Service Worker (`sw.js`) employs a strict cache-whitelist architecture.
+- **Allowed Cache Items**: Static application shell resources only (HTML, CSS, JS, SVG icons, manifests).
+- **Prohibited Cache Items**: Under zero circumstances does the Service Worker cache `/api/*` endpoints, session tokens, or API credentials.
+- All dynamic API communications bypass the Service Worker cache directly to the network or the local IndexedDB queue.
+
+### 13.2 Idempotent Batch Sync Protection
+- Offline-created entities generate a client-side UUID (`client_operation_id`).
+- When network reconnects, the batch sync endpoint (`POST /api/v1/groups/:groupId/sync`) verifies operations in `sync_operations` table before executing state changes.
+- Duplicate or replayed operations are acknowledged idempotently without double-inserting records or skewing financial ledgers.
+
+### 13.3 Offline Storage & Removed-Member Access Revocation
+- When a user is removed from a farming group or their session expires, the server returns `401 UNAUTHORIZED` or `403 FORBIDDEN_GROUP_ACCESS`.
+- The client-side synchronization service traps these status codes and automatically purges locally cached IndexedDB group data and pending sync queues, preventing unauthorized persistence on shared mobile devices.
+
+

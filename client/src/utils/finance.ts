@@ -34,6 +34,8 @@ export function formatCurrency(paise: number, lang: 'mr' | 'en' = 'mr'): string 
   return `₹${formattedNumber}`;
 }
 
+export const formatPaise = formatCurrency;
+
 /**
  * Derives payment status based on total amount and paid amount
  */

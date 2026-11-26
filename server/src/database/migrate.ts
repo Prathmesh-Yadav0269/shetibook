@@ -22,7 +22,10 @@ export async function runMigrations(customUrl?: string, customToken?: string) {
   const appliedResult = await client.execute('SELECT name FROM schema_migrations ORDER BY id ASC;');
   const appliedNames = new Set(appliedResult.rows.map(r => String(r.name)));
 
-  const migrationsDir = path.resolve(__dirname, 'migrations');
+  let migrationsDir = path.resolve(__dirname, 'migrations');
+  if (!fs.existsSync(migrationsDir)) {
+    migrationsDir = path.resolve(__dirname, '../../src/database/migrations');
+  }
   if (!fs.existsSync(migrationsDir)) {
     console.log('[Migrations] Directory not found:', migrationsDir);
     return;

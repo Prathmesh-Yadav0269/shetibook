@@ -1,0 +1,26 @@
+{
+  "name": "शेतीबुक (ShetiBook)",
+  "short_name": "ShetiBook",
+  "description": "तुमची शेती, तुमचा हिशोब, तुमच्या हातात! कौटुंबिक शेती व्यवस्थापन आणि आर्थिक हिशोब प्रणाली.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F1F5F9",
+  "theme_color": "#2E7D32",
+  "lang": "mr",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

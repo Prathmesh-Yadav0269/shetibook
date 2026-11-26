@@ -34,6 +34,10 @@ import { SaleListPage } from '../../features/finance/pages/SaleListPage';
 import { SaleFormPage } from '../../features/finance/pages/SaleFormPage';
 import { SaleDetailPage } from '../../features/finance/pages/SaleDetailPage';
 import { FinanceSummaryPage } from '../../features/finance/pages/FinanceSummaryPage';
+import { DashboardPage } from '../../features/dashboard/pages/DashboardPage';
+import { ReportsPage } from '../../features/reports/pages/ReportsPage';
+import { NotificationsPage } from '../../features/notifications/pages/NotificationsPage';
+import { NotificationPreferencesPage } from '../../features/notifications/pages/NotificationPreferencesPage';
 import { useAuth } from '../providers/AuthProvider';
 
 const HomeRedirect: React.FC = () => {
@@ -42,7 +46,7 @@ const HomeRedirect: React.FC = () => {
     return <Navigate to="/welcome" replace />;
   }
   if (selectedGroup) {
-    return <Navigate to="/family/overview" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   if (groups.length > 0) {
     return <Navigate to="/family/select" replace />;
@@ -102,6 +106,11 @@ export const router = createBrowserRouter([
       { path: '/sales/:saleId', element: <SaleDetailPage /> },
       { path: '/sales/:saleId/edit', element: <SaleFormPage /> },
       { path: '/finance/summary', element: <FinanceSummaryPage /> },
+      // Phase 4 Intelligence, Reports & Notifications routes
+      { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/reports', element: <ReportsPage /> },
+      { path: '/notifications', element: <NotificationsPage /> },
+      { path: '/notifications/preferences', element: <NotificationPreferencesPage /> },
     ],
   },
   {

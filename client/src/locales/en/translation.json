@@ -29,6 +29,9 @@
   },
   "nav": {
     "home": "Home",
+    "dashboard": "Dashboard",
+    "reports": "Reports",
+    "notifications": "Notifications",
     "family": "Family Group",
     "createFamily": "Create New Group",
     "joinFamily": "Join Group",

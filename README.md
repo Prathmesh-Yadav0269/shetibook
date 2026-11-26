@@ -33,12 +33,15 @@ ShetiBook is developed under a strict, phased engineering lifecycle:
   - Harvest inventory management: yield tracking in metric/regional units (Quintal, Ton, Kg, Crates), sold vs remaining balance calculation, and overselling protection.
   - Agricultural sales & market buyers: direct sales or sales from harvest stock, APMC market and buyer tracking, unit rates, and instant receivable status calculation.
   - Executive financial dashboard & reports: Accrual P&L, Realized Cash Flow, outstanding receivables/payables, and category expense distribution in Marathi and English.
-- **Phase 4: Intelligence & Application Experience** *(Pending Phase 3 Approval)*
-  - Dashboard, reports, notifications, offline synchronization, and Progressive Web App (PWA).
-- **Phase 5: Quality Assurance & Production Release** *(Pending Phase 4)*
+- **Phase 4: Intelligence & Application Experience** *(Completed & Verified)*
+  - **Module 1: Dashboard & Executive Intelligence**: Farm, crop, activity, and financial KPIs aggregation with land distribution progress tracking (`/api/v1/groups/:groupId/dashboard`).
+  - **Module 2: Analytics & Reports Engine**: Farm reports, crop reports, monthly trend time-series, and sanitized UTF-8 BOM CSV export with formula injection prevention (`'`, `\uFEFF`).
+  - **Module 3: Notifications & Reminders**: 3-stage reminder escalation schedule (2h -> 30m -> 1m family escalation), pause/resume/cancel lifecycle hooks, in-app notification center, and web push subscriptions.
+  - **Module 4: Offline-First Experience**: IndexedDB local storage (`sync_queue`, `cached_records`), operation queue with `clientOperationId` idempotency, batch sync processor (`POST /api/v1/groups/:groupId/sync`), and removed-member revocation protection.
+  - **Module 5: PWA & Application Experience**: Web App Manifest (`manifest.webmanifest`), Service Worker with app shell precaching (`sw.js`), install prompt capability, and strict security isolation (zero caching of sensitive auth credentials).
+  - **Module 6: Unified Dev Command**: Root `npm run dev` launching backend and frontend together with `concurrently` devDependency.
+- **Phase 5: Quality Assurance & Production Release** *(Pending Phase 4 Approval)*
   - Integration, security hardening, performance tuning, deployment, backup/recovery, and handover.
-
-*(Strict project boundary: Offline sync and PWA enhancements belong exclusively to Phase 4 and remain untouched).*
 
 ---
 
@@ -49,7 +52,7 @@ ShetiBook is developed under a strict, phased engineering lifecycle:
 | **Frontend** | React 18, Vite 6, TypeScript 5, Tailwind CSS 3, React Router 7, TanStack Query 5, React Hook Form, Zod, i18next, Lucide React |
 | **Backend** | Node.js (v22+), Express 4, TypeScript 5, Zod, Argon2id, Cookie-Parser, Helmet, Express-Rate-Limit |
 | **Database** | Turso / SQLite relational database via official `@libsql/client` (Foreign Keys enabled) |
-| **Testing** | Vitest 3, Supertest 7 (78 automated tests across 7 suites) |
+| **Testing** | Vitest 3, Supertest 7 (96 automated tests across 10 suites) |
 | **Version Control** | Git, GitHub (`main` branch) |
 
 ---
@@ -67,7 +70,11 @@ shetibook/
 │   │   │   ├── auth/           # Login, register, recovery, account
 │   │   │   ├── family/         # Group overview, invite, join, members
 │   │   │   ├── agriculture/    # Farms, plots, crops, intercropping, activities
-│   │   │   └── finance/        # Expenses, allocations, harvests, sales, payments, summary
+│   │   │   ├── finance/        # Expenses, allocations, harvests, sales, payments, summary
+│   │   │   ├── dashboard/      # Executive intelligence dashboard & KPI tracking
+│   │   │   ├── reports/        # Analytics, crop/farm reports, monthly trends, CSV export
+│   │   │   ├── notifications/  # Notification center, reminders, preferences
+│   │   │   └── offline/        # IndexedDB offline store, sync manager, offline banner
 │   │   ├── locales/            # Marathi (mr) and English (en) translations
 │   │   ├── services/           # API client (GET, POST, PUT, PATCH, DELETE) & i18n
 │   │   ├── styles/             # Tailwind global styles
@@ -86,25 +93,32 @@ shetibook/
 │   │   │       ├── 001_initial_schema.sql
 │   │   │       ├── 002_owner_constraint_and_audit.sql
 │   │   │       ├── 003_agricultural_management.sql
-│   │   │       └── 004_financial_management.sql
+│   │   │       ├── 004_financial_management.sql
+│   │   │       └── 005_intelligence_notifications_sync.sql
 │   │   ├── middleware/         # Auth, group RBAC, error handling, rate limiting
 │   │   ├── modules/            # Domain modules:
 │   │   │   ├── auth/           # Argon2id crypto, session issuance, recovery
 │   │   │   ├── family/         # Group management, invitations, members
 │   │   │   ├── agriculture/    # Farms, plots, crops, activities, event history
-│   │   │   └── finance/        # Expenses, allocations, harvests, sales, payments, P&L
+│   │   │   ├── finance/        # Expenses, allocations, harvests, sales, payments, P&L
+│   │   │   ├── intelligence/   # Dashboard aggregation & reporting engine
+│   │   │   ├── notifications/  # Notification center, reminders, escalation
+│   │   │   └── sync/           # Offline batch sync & idempotency engine
 │   │   ├── utils/              # Crypto, logger, area & finance math (paise, kg)
 │   │   ├── validators/         # Zod schemas for auth, family, agriculture, finance
 │   │   ├── app.ts              # Express application setup
 │   │   └── server.ts           # Server bootstrap & migration auto-run
-│   ├── tests/                  # Automated integration tests (78 tests)
+│   ├── tests/                  # Automated integration tests (96 tests across 10 suites)
 │   │   ├── auth.test.ts
 │   │   ├── family.test.ts
 │   │   ├── area.test.ts
 │   │   ├── agriculture.test.ts
 │   │   ├── agriculture.integration.test.ts
 │   │   ├── finance.test.ts
-│   │   └── finance.integration.test.ts
+│   │   ├── finance.integration.test.ts
+│   │   ├── intelligence.test.ts
+│   │   ├── notifications.test.ts
+│   │   └── sync.test.ts
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── vitest.config.ts

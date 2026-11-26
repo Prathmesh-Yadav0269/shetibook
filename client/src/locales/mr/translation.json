@@ -29,6 +29,9 @@
   },
   "nav": {
     "home": "मुख्यपृष्ठ",
+    "dashboard": "डॅशबोर्ड",
+    "reports": "अहवाल",
+    "notifications": "सूचना",
     "family": "कुटुंब गट",
     "createFamily": "नवीन गट तयार करा",
     "joinFamily": "गटात सामील व्हा",

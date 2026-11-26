@@ -22,6 +22,9 @@ import {
   paymentsRouter,
   financeRouter,
 } from './modules/finance/finance.routes.js';
+import { intelligenceRouter } from './modules/intelligence/intelligence.routes.js';
+import { notificationRouter } from './modules/notifications/notification.routes.js';
+import { syncRouter } from './modules/sync/sync.routes.js';
 import { getDatabaseClient } from './database/client.js';
 
 export const app = express();
@@ -87,6 +90,9 @@ app.use('/api/v1/groups/:groupId/harvests', harvestsRouter);
 app.use('/api/v1/groups/:groupId/sales', salesRouter);
 app.use('/api/v1/groups/:groupId/payments', paymentsRouter);
 app.use('/api/v1/groups/:groupId/finance', financeRouter);
+app.use('/api/v1/groups/:groupId/notifications', notificationRouter);
+app.use('/api/v1/groups/:groupId/sync', syncRouter);
+app.use('/api/v1/groups/:groupId', intelligenceRouter);
 
 // 404 handler for unmatched routes
 app.use((_req, res) => {

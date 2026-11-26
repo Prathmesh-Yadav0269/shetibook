@@ -8,6 +8,7 @@
     "server"
   ],
   "scripts": {
+    "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm run dev --workspace=server",
     "dev:client": "npm run dev --workspace=client",
     "build:server": "npm run build --workspace=server",
@@ -35,6 +36,7 @@
     "mime-types": "^3.0.2"
   },
   "devDependencies": {
-    "@paralleldrive/cuid2": "^3.3.0"
+    "@paralleldrive/cuid2": "^3.3.0",
+    "concurrently": "^8.2.2"
   }
 }

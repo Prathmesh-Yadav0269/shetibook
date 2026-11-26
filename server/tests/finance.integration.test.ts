@@ -418,4 +418,131 @@ describe('ShetiBook Phase 3 - Financial & Business Management Integration Tests'
       .set('Cookie', outsiderCookie);
     expect(summaryOutsider.status).toBe(403);
   });
+
+  it('Step 10: Concurrency Test: Exactly one concurrent payment succeeds against remaining balance', async () => {
+    // Create dedicated expense of ₹1,000 (100,000 paise)
+    const newExp = await request(app)
+      .post(`/api/v1/groups/${groupId}/expenses`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId,
+        expenseCategoryId: 'cat_fuel',
+        amountPaise: 100000,
+        expenseDate: '2026-11-23',
+        description: 'डिझेल खरेदी (शर्यत चाचणी खर्च)',
+      });
+    expect(newExp.status).toBe(201);
+    const testExpId = newExp.body.data.id;
+
+    // Fire two simultaneous payments each attempting to pay the entire ₹1,000 balance
+    const [res1, res2] = await Promise.all([
+      request(app)
+        .post(`/api/v1/groups/${groupId}/payments`)
+        .set('X-Requested-With', 'XMLHttpRequest')
+        .set('Cookie', ownerCookie)
+        .send({
+          expenseId: testExpId,
+          amountPaise: 100000,
+          paymentDate: '2026-11-23',
+          paymentMethod: 'cash',
+          notes: 'समवर्ती पेमेंट १',
+        }),
+      request(app)
+        .post(`/api/v1/groups/${groupId}/payments`)
+        .set('X-Requested-With', 'XMLHttpRequest')
+        .set('Cookie', ownerCookie)
+        .send({
+          expenseId: testExpId,
+          amountPaise: 100000,
+          paymentDate: '2026-11-23',
+          paymentMethod: 'upi',
+          notes: 'समवर्ती पेमेंट २',
+        }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    // Exactly one must succeed (201) and one must be rejected (400)
+    expect(statuses).toEqual([201, 400]);
+
+    const failedRes = res1.status === 400 ? res1 : res2;
+    expect(failedRes.body.error.message).toContain('पेमेंट शिल्लक रक्कमेपेक्षा');
+
+    // Verify expense has exactly 1 payment and balance is 0
+    const expDetail = await request(app)
+      .get(`/api/v1/groups/${groupId}/expenses/${testExpId}`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie);
+
+    expect(expDetail.body.data.paidPaise).toBe(100000);
+    expect(expDetail.body.data.balancePaise).toBe(0);
+    expect(expDetail.body.data.paymentStatus).toBe('paid');
+    expect(expDetail.body.data.payments.length).toBe(1);
+  });
+
+  it('Step 11: Concurrency Test: Exactly one concurrent sale succeeds without overselling harvest', async () => {
+    // Create dedicated harvest of 2 quintals
+    const newHarv = await request(app)
+      .post(`/api/v1/groups/${groupId}/harvests`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId,
+        cropId,
+        harvestDate: '2026-11-23',
+        quantity: 2,
+        unit: 'quintal',
+        notes: 'समवर्ती विक्री चाचणीसाठी काढणी',
+      });
+    expect(newHarv.status).toBe(201);
+    const testHarvId = newHarv.body.data.id;
+
+    // Fire two simultaneous sales each requesting all 2 quintals
+    const [res1, res2] = await Promise.all([
+      request(app)
+        .post(`/api/v1/groups/${groupId}/sales`)
+        .set('X-Requested-With', 'XMLHttpRequest')
+        .set('Cookie', ownerCookie)
+        .send({
+          farmId,
+          cropId,
+          harvestId: testHarvId,
+          saleDate: '2026-11-23',
+          quantity: 2,
+          unit: 'quintal',
+          ratePaise: 250000,
+          buyerName: 'समवर्ती खरेदीदार १',
+        }),
+      request(app)
+        .post(`/api/v1/groups/${groupId}/sales`)
+        .set('X-Requested-With', 'XMLHttpRequest')
+        .set('Cookie', ownerCookie)
+        .send({
+          farmId,
+          cropId,
+          harvestId: testHarvId,
+          saleDate: '2026-11-23',
+          quantity: 2,
+          unit: 'quintal',
+          ratePaise: 250000,
+          buyerName: 'समवर्ती खरेदीदार २',
+        }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    // Exactly one must succeed (201) and one must be rejected (400)
+    expect(statuses).toEqual([201, 400]);
+
+    const failedRes = res1.status === 400 ? res1 : res2;
+    expect(failedRes.body.error.message).toContain('काढणीच्या शिल्लक प्रमाणापेक्षा जास्त विक्री करता येणार नाही');
+
+    // Verify harvest remaining quantity is strictly 0 and sold is 2
+    const harvDetail = await request(app)
+      .get(`/api/v1/groups/${groupId}/harvests/${testHarvId}`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie);
+
+    expect(harvDetail.body.data.soldQuantity).toBe(2);
+    expect(harvDetail.body.data.remainingQuantity).toBe(0);
+  });
 });

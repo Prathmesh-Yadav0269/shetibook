@@ -19,7 +19,7 @@ flowchart TD
 - **Phase 1: Foundation & Core Infrastructure** *(Completed)*: Monorepo, database migrations, phone + Argon2id authentication, 128-bit keyed recovery secrets, HTTP-only sessions, family groups with single active owner and atomic invitation consumption, audit log triggers, and Marathi/English bilingual support.
 - **Phase 2: Farm & Agricultural Management** *(Completed)*: Farms, plots, land area conversions, crops, intercropping architecture, activities, and append-only event timeline.
 - **Phase 3: Financial & Business Management** *(Completed)*: Expenses with Marathi agricultural categories, flexible percentage/direct crop cost allocations, reusable multi-installment payment tracking with overpayment prevention, harvest inventory with sold/remaining tracking, agricultural sales with market buyer metadata, and executive Accrual P&L & Realized Cash Flow reporting.
-- **Phase 4: Intelligence & Application Experience** *(Pending)*: Dashboard, reports, notifications, offline synchronization, and PWA.
+- **Phase 4: Intelligence & Application Experience** *(Completed)*: Executive Intelligence Dashboard (`/api/v1/groups/:groupId/dashboard`), comprehensive reporting engine with formula-sanitized UTF-8 BOM CSV export (`/api/v1/groups/:groupId/reports`), in-app notification center & 3-stage reminder escalation (`/api/v1/groups/:groupId/notifications`), offline IndexedDB operations queue with idempotent batch sync (`/api/v1/groups/:groupId/sync`), Progressive Web App shell caching (`sw.js`), and unified development orchestration (`npm run dev`).
 - **Phase 5: Quality Assurance & Production Release** *(Pending)*: Integration, security, performance, deployment, backup/recovery, and handover.
 
 ---

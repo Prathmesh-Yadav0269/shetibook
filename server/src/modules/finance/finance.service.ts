@@ -991,28 +991,48 @@ export class FinanceService {
       throw new AppError('पीक आढळले नाही किंवा शेताशी जोडलेले नाही', 404);
     }
 
-    // If harvest linked, verify remaining capacity
-    if (data.harvestId) {
-      const harvestDetails = await this.getHarvestDetails(groupId, data.harvestId);
-      if (harvestDetails.cropId !== data.cropId) {
-        throw new AppError('निवडलेली काढणी या पिकाची नाही (Harvest does not match crop)', 400);
-      }
-
-      const saleKg = toKg(data.quantity, data.unit);
-      const remainingKg = toKg(harvestDetails.remainingQuantity, harvestDetails.unit);
-
-      // Epsilon for small floating point differences
-      if (saleKg > remainingKg + 0.0001) {
-        throw new AppError(`काढणीच्या शिल्लक प्रमाणापेक्षा जास्त विक्री करता येणार नाही. उपलब्ध: ${harvestDetails.remainingQuantity} ${harvestDetails.unit}`, 400);
-      }
-    }
-
     const calculatedTotal = data.totalAmountPaise || Math.round(data.quantity * data.ratePaise);
     const saleId = crypto.randomUUID();
     const now = new Date().toISOString();
 
     const txn = await client.transaction('write');
     try {
+      // Re-verify harvest remaining capacity inside write transaction for strict concurrency safety
+      if (data.harvestId) {
+        const harvestRow = await txn.execute({
+          sql: 'SELECT quantity, unit, crop_id FROM harvests WHERE id = ? AND group_id = ? AND is_active = 1',
+          args: [data.harvestId, groupId],
+        });
+        if (harvestRow.rows.length === 0) {
+          throw new AppError('काढणी नोंद आढळली नाही', 404);
+        }
+        if (String(harvestRow.rows[0].crop_id) !== data.cropId) {
+          throw new AppError('निवडलेली काढणी या पिकाची नाही (Harvest does not match crop)', 400);
+        }
+        const harvestQty = Number(harvestRow.rows[0].quantity);
+        const harvestUnit = String(harvestRow.rows[0].unit) as HarvestUnit;
+        const totalHarvestKg = toKg(harvestQty, harvestUnit);
+
+        const soldRows = await txn.execute({
+          sql: 'SELECT quantity, unit FROM sales WHERE harvest_id = ? AND is_active = 1',
+          args: [data.harvestId],
+        });
+        const soldKg = soldRows.rows.reduce(
+          (acc, r) => acc + toKg(Number(r.quantity), String(r.unit) as HarvestUnit),
+          0
+        );
+        const availableKg = Math.max(0, totalHarvestKg - soldKg);
+        const requestedKg = toKg(data.quantity, data.unit);
+
+        if (requestedKg > availableKg + 0.0001) {
+          const availableInUnit = fromKg(availableKg, data.unit);
+          throw new AppError(
+            `काढणीच्या शिल्लक प्रमाणापेक्षा जास्त विक्री करता येणार नाही. उपलब्ध: ${availableInUnit} ${data.unit}`,
+            400
+          );
+        }
+      }
+
       await txn.execute({
         sql: `
           INSERT INTO sales (
@@ -1398,25 +1418,52 @@ export class FinanceService {
       throw new AppError('पेमेंट केवळ खर्चासाठी किंवा विक्रीसाठीच नोंदवले जाऊ शकते (Payment must be for either expense or sale)', 400);
     }
 
-    if (data.expenseId) {
-      const expense = await this.getExpenseDetails(groupId, data.expenseId);
-      if (data.amountPaise > expense.balancePaise) {
-        throw new AppError(`पेमेंट शिल्लक रक्कमेपेक्षा (${expense.balancePaise / 100} रु.) जास्त असू शकत नाही`, 400);
-      }
-    }
-
-    if (data.saleId) {
-      const sale = await this.getSaleDetails(groupId, data.saleId);
-      if (data.amountPaise > sale.balancePaise) {
-        throw new AppError(`पेमेंट शिल्लक रक्कमेपेक्षा (${sale.balancePaise / 100} रु.) जास्त असू शकत नाही`, 400);
-      }
-    }
-
     const paymentId = crypto.randomUUID();
     const now = new Date().toISOString();
 
     const txn = await client.transaction('write');
     try {
+      // Re-verify outstanding balance inside write transaction for strict race condition & overpayment prevention
+      if (data.expenseId) {
+        const expRow = await txn.execute({
+          sql: 'SELECT amount_paise FROM expenses WHERE id = ? AND group_id = ? AND is_active = 1',
+          args: [data.expenseId, groupId],
+        });
+        if (expRow.rows.length === 0) {
+          throw new AppError('खर्च आढळला नाही', 404);
+        }
+        const expTotalPaise = Number(expRow.rows[0].amount_paise);
+        const paidRow = await txn.execute({
+          sql: 'SELECT COALESCE(SUM(amount_paise), 0) as paidPaise FROM payments WHERE expense_id = ?',
+          args: [data.expenseId],
+        });
+        const currentPaid = Number(paidRow.rows[0].paidPaise);
+        const currentBalance = Math.max(0, expTotalPaise - currentPaid);
+        if (data.amountPaise > currentBalance) {
+          throw new AppError(`पेमेंट शिल्लक रक्कमेपेक्षा (${currentBalance / 100} रु.) जास्त असू शकत नाही`, 400);
+        }
+      }
+
+      if (data.saleId) {
+        const saleRow = await txn.execute({
+          sql: 'SELECT total_amount_paise FROM sales WHERE id = ? AND group_id = ? AND is_active = 1',
+          args: [data.saleId, groupId],
+        });
+        if (saleRow.rows.length === 0) {
+          throw new AppError('विक्री नोंद आढळली नाही', 404);
+        }
+        const saleTotalPaise = Number(saleRow.rows[0].total_amount_paise);
+        const paidRow = await txn.execute({
+          sql: 'SELECT COALESCE(SUM(amount_paise), 0) as paidPaise FROM payments WHERE sale_id = ?',
+          args: [data.saleId],
+        });
+        const currentPaid = Number(paidRow.rows[0].paidPaise);
+        const currentBalance = Math.max(0, saleTotalPaise - currentPaid);
+        if (data.amountPaise > currentBalance) {
+          throw new AppError(`पेमेंट शिल्लक रक्कमेपेक्षा (${currentBalance / 100} रु.) जास्त असू शकत नाही`, 400);
+        }
+      }
+
       await txn.execute({
         sql: `
           INSERT INTO payments (
@@ -1641,28 +1688,58 @@ export class FinanceService {
     const outflowRes = await client.execute({ sql: outflowSql, args: outflowArgs });
     const cashOutflowPaise = Number(outflowRes.rows[0].cashOutflowPaise);
 
-    // 5. Total Paid on Sales (All methods including credit settlements)
-    const salesPaidRes = await client.execute({
-      sql: `
-        SELECT COALESCE(SUM(p.amount_paise), 0) as totalSalesPaidPaise
-        FROM payments p
-        JOIN sales s ON s.id = p.sale_id
-        WHERE p.group_id = ? AND s.is_active = 1
-      `,
-      args: [groupId],
-    });
+    // 5. Total Paid on Sales (All methods including credit settlements, matching sales filters)
+    let salesPaidSql = `
+      SELECT COALESCE(SUM(p.amount_paise), 0) as totalSalesPaidPaise
+      FROM payments p
+      JOIN sales s ON s.id = p.sale_id
+      WHERE p.group_id = ? AND s.is_active = 1
+    `;
+    const salesPaidArgs: InValue[] = [groupId];
+    if (filters?.farmId) {
+      salesPaidSql += ' AND s.farm_id = ?';
+      salesPaidArgs.push(filters.farmId);
+    }
+    if (filters?.cropId) {
+      salesPaidSql += ' AND s.crop_id = ?';
+      salesPaidArgs.push(filters.cropId);
+    }
+    if (filters?.startDate) {
+      salesPaidSql += ' AND s.sale_date >= ?';
+      salesPaidArgs.push(filters.startDate);
+    }
+    if (filters?.endDate) {
+      salesPaidSql += ' AND s.sale_date <= ?';
+      salesPaidArgs.push(filters.endDate);
+    }
+    const salesPaidRes = await client.execute({ sql: salesPaidSql, args: salesPaidArgs });
     const totalSalesPaidPaise = Number(salesPaidRes.rows[0].totalSalesPaidPaise);
 
-    // 6. Total Paid on Expenses
-    const expensesPaidRes = await client.execute({
-      sql: `
-        SELECT COALESCE(SUM(p.amount_paise), 0) as totalExpensesPaidPaise
-        FROM payments p
-        JOIN expenses e ON e.id = p.expense_id
-        WHERE p.group_id = ? AND e.is_active = 1
-      `,
-      args: [groupId],
-    });
+    // 6. Total Paid on Expenses (Matching expense filters)
+    let expensesPaidSql = `
+      SELECT COALESCE(SUM(p.amount_paise), 0) as totalExpensesPaidPaise
+      FROM payments p
+      JOIN expenses e ON e.id = p.expense_id
+      WHERE p.group_id = ? AND e.is_active = 1
+    `;
+    const expensesPaidArgs: InValue[] = [groupId];
+    if (filters?.farmId) {
+      expensesPaidSql += ' AND e.farm_id = ?';
+      expensesPaidArgs.push(filters.farmId);
+    }
+    if (filters?.cropId) {
+      expensesPaidSql += ' AND EXISTS (SELECT 1 FROM expense_allocations ea WHERE ea.expense_id = e.id AND ea.crop_id = ?)';
+      expensesPaidArgs.push(filters.cropId);
+    }
+    if (filters?.startDate) {
+      expensesPaidSql += ' AND e.expense_date >= ?';
+      expensesPaidArgs.push(filters.startDate);
+    }
+    if (filters?.endDate) {
+      expensesPaidSql += ' AND e.expense_date <= ?';
+      expensesPaidArgs.push(filters.endDate);
+    }
+    const expensesPaidRes = await client.execute({ sql: expensesPaidSql, args: expensesPaidArgs });
     const totalExpensesPaidPaise = Number(expensesPaidRes.rows[0].totalExpensesPaidPaise);
 
     const netProfitPaise = totalSalesPaise - totalExpensesPaise;

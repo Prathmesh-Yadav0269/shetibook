@@ -9,8 +9,11 @@ export const ACRES_PER_HECTARE = 2.4710538147;
 
 export interface AreaBreakdown {
   acre: number;
+  acres?: number;
   guntha: number;
+  gunthas?: number;
   hectare: number;
+  hectares?: number;
   sqm: number;
 }
 
@@ -66,13 +69,22 @@ export function convertArea(value: number, fromUnit: AreaUnit, toUnit: AreaUnit)
 /**
  * Calculates complete breakdown in all supported units
  */
-export function calculateAreaBreakdown(value: number, unit: AreaUnit): AreaBreakdown {
-  const sqm = toSquareMeters(value, unit);
+export function calculateAreaBreakdown(value: number, unit?: AreaUnit | 'sqm'): AreaBreakdown {
+  if (value <= 0 || !Number.isFinite(value)) {
+    return { sqm: 0, acre: 0, acres: 0, guntha: 0, gunthas: 0, hectare: 0, hectares: 0 };
+  }
+  const sqm = !unit || unit === 'sqm' ? value : toSquareMeters(value, unit);
+  const acre = Number(fromSquareMeters(sqm, 'acre').toFixed(2));
+  const guntha = Number(fromSquareMeters(sqm, 'guntha').toFixed(2));
+  const hectare = Number(fromSquareMeters(sqm, 'hectare').toFixed(4));
   return {
     sqm: Number(sqm.toFixed(2)),
-    acre: Number(fromSquareMeters(sqm, 'acre').toFixed(2)),
-    guntha: Number(fromSquareMeters(sqm, 'guntha').toFixed(2)),
-    hectare: Number(fromSquareMeters(sqm, 'hectare').toFixed(4)),
+    acre,
+    acres: acre,
+    guntha,
+    gunthas: guntha,
+    hectare,
+    hectares: hectare,
   };
 }
 
