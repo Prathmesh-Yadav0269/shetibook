@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-11-26T18:56:20.932Z",
+  "sourceDatabase": "E:\\shetibook\\data\\drill_source.db",
+  "backupFile": "E:\\shetibook\\data\\drill_backup.db",
+  "restoredDatabase": "E:\\shetibook\\data\\drill_restored.db",
+  "stages": [
+    {
+      "stage": "Source Database Seeding",
+      "passed": true,
+      "recordsInserted": {
+        "users": 1,
+        "groups": 1,
+        "farms": 1,
+        "crops": 1,
+        "expenses": 1,
+        "allocations": 1
+      }
+    },
+    {
+      "stage": "Database Backup Creation",
+      "passed": true,
+      "backupSizeBytes": 458752
+    },
+    {
+      "stage": "Database Restoration",
+      "passed": true
+    },
+    {
+      "stage": "Restored Database Integrity & Foreign Key Verification",
+      "passed": true,
+      "details": {
+        "integrityCheck": "ok",
+        "foreignKeyViolations": 0,
+        "recordsIntact": true,
+        "relationalJoinValidated": true
+      }
+    }
+  ]
+}

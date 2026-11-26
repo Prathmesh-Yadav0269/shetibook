@@ -1,0 +1,44 @@
+{
+  "gate": "Gate 4: Offline Synchronization and Data Recovery",
+  "timestamp": "2026-11-26T18:48:56.424Z",
+  "browser": "Headless Google Chrome (DevTools Protocol)",
+  "tests": [
+    {
+      "name": "Offline Operations Enqueued in IndexedDB",
+      "passed": true,
+      "details": {
+        "initialPendingCount": 2
+      }
+    },
+    {
+      "name": "403 Revocation Quarantines Operations without Silent Deletion",
+      "passed": true,
+      "details": {
+        "pendingAfterQuarantine": 0,
+        "quarantinedCount": 2
+      }
+    },
+    {
+      "name": "Quarantined Operations Excluded from Auto-Upload Queue",
+      "passed": true,
+      "details": {
+        "autoUploadQueueLength": 0
+      }
+    },
+    {
+      "name": "Explicit Restoration to Pending upon Authorization Renewal",
+      "passed": true,
+      "details": {
+        "restoredCount": 2
+      }
+    },
+    {
+      "name": "Logout Clears Cached Records while Preserving Unsynced Queue",
+      "passed": true,
+      "details": {
+        "unsyncedQueuePreserved": 2,
+        "cachePurged": true
+      }
+    }
+  ]
+}

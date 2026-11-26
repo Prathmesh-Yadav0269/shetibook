@@ -1,0 +1,128 @@
+[
+  {
+    "scenario": "Scenario A: Total Expense",
+    "expected": 500000,
+    "actual": 500000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario A: Crop Allocations Total",
+    "expected": 450000,
+    "actual": 450000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario A: General Residual Overhead",
+    "expected": 50000,
+    "actual": 50000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario A: Reject Allocations Exceeding Total",
+    "expected": true,
+    "actual": true,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario B: Total Paid",
+    "expected": 500000,
+    "actual": 500000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario B: Outstanding Balance",
+    "expected": 500000,
+    "actual": 500000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario B: Payment Status (Partial)",
+    "expected": "partial",
+    "actual": "partial",
+    "passed": true
+  },
+  {
+    "scenario": "Scenario B: Reject Overpayment",
+    "expected": true,
+    "actual": true,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario C: Cumulative Sales Quantity",
+    "expected": 700,
+    "actual": 700,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario C: Remaining Inventory Quantity",
+    "expected": 300,
+    "actual": 300,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario C: Reject Overselling Harvest",
+    "expected": true,
+    "actual": true,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario C: Sale Receivables Calculation",
+    "expected": 800000,
+    "actual": 800000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Total Accrual Sales Revenue",
+    "expected": 3500000,
+    "actual": 3500000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Total Accrual Incurred Expenses",
+    "expected": 1500000,
+    "actual": 1500000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Accrual Net Profit (Sales - Expenses)",
+    "expected": 2000000,
+    "actual": 2000000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Total Cash Inflows (Payments Received)",
+    "expected": 1200000,
+    "actual": 1200000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Total Cash Outflows (Payments Made)",
+    "expected": 500000,
+    "actual": 500000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Net Cash Flow (Inflow - Outflow)",
+    "expected": 700000,
+    "actual": 700000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Outstanding Receivables",
+    "expected": 2300000,
+    "actual": 2300000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Outstanding Payables",
+    "expected": 1000000,
+    "actual": 1000000,
+    "passed": true
+  },
+  {
+    "scenario": "Scenario D: Sugarcane Direct Crop Isolation (Excludes General Overhead & Soybean)",
+    "expected": 300000,
+    "actual": 300000,
+    "passed": true
+  }
+]
