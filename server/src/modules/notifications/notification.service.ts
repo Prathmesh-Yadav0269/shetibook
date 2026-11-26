@@ -301,31 +301,60 @@ export class NotificationService {
     logger.info('Activity reminders paused', { activityId });
   }
 
-  async resumeActivityReminders(activityId: string) {
+  async resumeActivityReminders(activityId: string, resumedAt?: string) {
     const client = getDatabaseClient();
     const now = new Date().toISOString();
-    // When resumed, restart pending countdown from current time
-    const baseTime = Date.now();
-    const stage1Due = new Date(baseTime + 120 * 60 * 1000).toISOString();
-    const stage2Due = new Date(baseTime + 150 * 60 * 1000).toISOString();
-    const stage3Due = new Date(baseTime + 151 * 60 * 1000).toISOString();
+    const baseTime = resumedAt ? new Date(resumedAt).getTime() : Date.now();
+
+    // Check existing reminders to see which stages have already been sent
+    const existing = await client.execute({
+      sql: 'SELECT stage, status FROM activity_reminders WHERE activity_id = ?',
+      args: [activityId],
+    });
+
+    const stage1Sent = existing.rows.some((r) => Number(r.stage) === 1 && String(r.status) === 'sent');
+    const stage2Sent = existing.rows.some((r) => Number(r.stage) === 2 && String(r.status) === 'sent');
+
+    let stage1Due: string | null = null;
+    let stage2Due: string | null = null;
+    let stage3Due: string | null = null;
+
+    if (!stage1Sent) {
+      // Stage 1 was not yet sent: full timeline restart from resume time
+      stage1Due = new Date(baseTime + 120 * 60 * 1000).toISOString(); // +2 hours (120 min)
+      stage2Due = new Date(baseTime + 150 * 60 * 1000).toISOString(); // +2.5 hours (30 min after Stage 1)
+      stage3Due = new Date(baseTime + 151 * 60 * 1000).toISOString(); // +2h 31m (1 min after Stage 2)
+    } else if (!stage2Sent) {
+      // Stage 1 was sent prior to pause: Stage 2 due 30 min from resume, Stage 3 due 31 min from resume
+      stage2Due = new Date(baseTime + 30 * 60 * 1000).toISOString();
+      stage3Due = new Date(baseTime + 31 * 60 * 1000).toISOString();
+    } else {
+      // Stage 1 and 2 were sent: Stage 3 due 1 min from resume
+      stage3Due = new Date(baseTime + 1 * 60 * 1000).toISOString();
+    }
 
     const txn = await client.transaction('write');
     try {
-      await txn.execute({
-        sql: "UPDATE activity_reminders SET due_at = ?, status = 'pending', updated_at = ? WHERE activity_id = ? AND stage = 1 AND status = 'paused'",
-        args: [stage1Due, now, activityId],
-      });
-      await txn.execute({
-        sql: "UPDATE activity_reminders SET due_at = ?, status = 'pending', updated_at = ? WHERE activity_id = ? AND stage = 2 AND status = 'paused'",
-        args: [stage2Due, now, activityId],
-      });
-      await txn.execute({
-        sql: "UPDATE activity_reminders SET due_at = ?, status = 'pending', updated_at = ? WHERE activity_id = ? AND stage = 3 AND status = 'paused'",
-        args: [stage3Due, now, activityId],
-      });
+      if (stage1Due) {
+        await txn.execute({
+          sql: "UPDATE activity_reminders SET due_at = ?, status = 'pending', updated_at = ? WHERE activity_id = ? AND stage = 1 AND status = 'paused'",
+          args: [stage1Due, now, activityId],
+        });
+      }
+      if (stage2Due) {
+        await txn.execute({
+          sql: "UPDATE activity_reminders SET due_at = ?, status = 'pending', updated_at = ? WHERE activity_id = ? AND stage = 2 AND status = 'paused'",
+          args: [stage2Due, now, activityId],
+        });
+      }
+      if (stage3Due) {
+        await txn.execute({
+          sql: "UPDATE activity_reminders SET due_at = ?, status = 'pending', updated_at = ? WHERE activity_id = ? AND stage = 3 AND status = 'paused'",
+          args: [stage3Due, now, activityId],
+        });
+      }
       await txn.commit();
-      logger.info('Activity reminders resumed', { activityId });
+      logger.info('Activity reminders resumed with SRS-aligned timeline', { activityId, stage1Sent, stage2Sent });
     } catch (err) {
       await txn.rollback();
       throw err;

@@ -228,8 +228,10 @@ ShetiBook distinguishes between application-level convention and genuine databas
 - When network reconnects, the batch sync endpoint (`POST /api/v1/groups/:groupId/sync`) verifies operations in `sync_operations` table before executing state changes.
 - Duplicate or replayed operations are acknowledged idempotently without double-inserting records or skewing financial ledgers.
 
-### 13.3 Offline Storage & Removed-Member Access Revocation
-- When a user is removed from a farming group or their session expires, the server returns `401 UNAUTHORIZED` or `403 FORBIDDEN_GROUP_ACCESS`.
-- The client-side synchronization service traps these status codes and automatically purges locally cached IndexedDB group data and pending sync queues, preventing unauthorized persistence on shared mobile devices.
+### 13.3 Offline Storage & Removed-Member Access Revocation & Quarantine
+- When a user is removed from a farming group or their session expires, the server immediately revokes authorization and returns `401 UNAUTHORIZED` or `403 FORBIDDEN_GROUP_ACCESS`.
+- The client-side synchronization service traps these status codes and automatically **quarantines** unauthorized pending operations in IndexedDB (`status = 'quarantined'`) with timestamp and reason, instead of silently deleting user-created data.
+- Quarantined records are isolated from normal sync queues, preventing unauthorized uploads without renewed group permissions, while preserving recoverable local records for the farmer.
+- Sensitive read caches (`cached_records`) are purged upon user logout.
 
 

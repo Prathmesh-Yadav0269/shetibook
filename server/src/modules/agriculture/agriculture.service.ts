@@ -1642,7 +1642,7 @@ export class AgricultureService {
       } else if (transition === 'pause') {
         await this.notificationService.pauseActivityReminders(activityId);
       } else if (transition === 'resume') {
-        await this.notificationService.resumeActivityReminders(activityId);
+        await this.notificationService.resumeActivityReminders(activityId, now);
       } else if (transition === 'complete' || transition === 'cancel') {
         await this.notificationService.cancelActivityReminders(activityId);
       }

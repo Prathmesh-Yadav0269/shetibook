@@ -1608,31 +1608,52 @@ export class FinanceService {
     const salesRes = await client.execute({ sql: salesSql, args: salesArgs });
     const totalSalesPaise = Number(salesRes.rows[0].totalSalesPaise);
 
-    // 2. Accrual Expenses
-    let expensesSql = `
-      SELECT COALESCE(SUM(amount_paise), 0) as totalExpensesPaise
-      FROM expenses
-      WHERE group_id = ? AND is_active = 1
-    `;
-    const expensesArgs: InValue[] = [groupId];
-    if (filters?.farmId) {
-      expensesSql += ' AND farm_id = ?';
-      expensesArgs.push(filters.farmId);
-    }
+    // 2. Accrual Expenses (If filtered by cropId, strictly attribute direct crop allocations)
+    let totalExpensesPaise = 0;
     if (filters?.cropId) {
-      expensesSql += ' AND EXISTS (SELECT 1 FROM expense_allocations ea WHERE ea.expense_id = expenses.id AND ea.crop_id = ?)';
-      expensesArgs.push(filters.cropId);
+      let expAllocSql = `
+        SELECT COALESCE(SUM(ea.amount_paise), 0) as totalAllocatedPaise
+        FROM expense_allocations ea
+        JOIN expenses e ON e.id = ea.expense_id
+        WHERE ea.group_id = ? AND e.is_active = 1 AND ea.crop_id = ?
+      `;
+      const expAllocArgs: InValue[] = [groupId, filters.cropId];
+      if (filters?.farmId) {
+        expAllocSql += ' AND e.farm_id = ?';
+        expAllocArgs.push(filters.farmId);
+      }
+      if (filters?.startDate) {
+        expAllocSql += ' AND e.expense_date >= ?';
+        expAllocArgs.push(filters.startDate);
+      }
+      if (filters?.endDate) {
+        expAllocSql += ' AND e.expense_date <= ?';
+        expAllocArgs.push(filters.endDate);
+      }
+      const expAllocRes = await client.execute({ sql: expAllocSql, args: expAllocArgs });
+      totalExpensesPaise = Number(expAllocRes.rows[0].totalAllocatedPaise);
+    } else {
+      let expensesSql = `
+        SELECT COALESCE(SUM(amount_paise), 0) as totalExpensesPaise
+        FROM expenses
+        WHERE group_id = ? AND is_active = 1
+      `;
+      const expensesArgs: InValue[] = [groupId];
+      if (filters?.farmId) {
+        expensesSql += ' AND farm_id = ?';
+        expensesArgs.push(filters.farmId);
+      }
+      if (filters?.startDate) {
+        expensesSql += ' AND expense_date >= ?';
+        expensesArgs.push(filters.startDate);
+      }
+      if (filters?.endDate) {
+        expensesSql += ' AND expense_date <= ?';
+        expensesArgs.push(filters.endDate);
+      }
+      const expensesRes = await client.execute({ sql: expensesSql, args: expensesArgs });
+      totalExpensesPaise = Number(expensesRes.rows[0].totalExpensesPaise);
     }
-    if (filters?.startDate) {
-      expensesSql += ' AND expense_date >= ?';
-      expensesArgs.push(filters.startDate);
-    }
-    if (filters?.endDate) {
-      expensesSql += ' AND expense_date <= ?';
-      expensesArgs.push(filters.endDate);
-    }
-    const expensesRes = await client.execute({ sql: expensesSql, args: expensesArgs });
-    const totalExpensesPaise = Number(expensesRes.rows[0].totalExpensesPaise);
 
     // 3. Cash Inflow (Payments received on sales excluding pure credit)
     let inflowSql = `
@@ -1662,20 +1683,29 @@ export class FinanceService {
     const cashInflowPaise = Number(inflowRes.rows[0].cashInflowPaise);
 
     // 4. Cash Outflow (Payments paid for expenses excluding pure credit)
-    let outflowSql = `
-      SELECT COALESCE(SUM(p.amount_paise), 0) as cashOutflowPaise
-      FROM payments p
-      JOIN expenses e ON e.id = p.expense_id
-      WHERE p.group_id = ? AND e.is_active = 1 AND p.payment_method != 'credit'
-    `;
-    const outflowArgs: InValue[] = [groupId];
+    let outflowSql: string;
+    const outflowArgs: InValue[] = [];
+    if (filters?.cropId) {
+      outflowSql = `
+        SELECT COALESCE(SUM(ROUND(CAST(p.amount_paise AS REAL) * ea.amount_paise / e.amount_paise)), 0) as cashOutflowPaise
+        FROM payments p
+        JOIN expenses e ON e.id = p.expense_id
+        JOIN expense_allocations ea ON ea.expense_id = e.id AND ea.crop_id = ?
+        WHERE p.group_id = ? AND e.is_active = 1 AND p.payment_method != 'credit'
+      `;
+      outflowArgs.push(filters.cropId, groupId);
+    } else {
+      outflowSql = `
+        SELECT COALESCE(SUM(p.amount_paise), 0) as cashOutflowPaise
+        FROM payments p
+        JOIN expenses e ON e.id = p.expense_id
+        WHERE p.group_id = ? AND e.is_active = 1 AND p.payment_method != 'credit'
+      `;
+      outflowArgs.push(groupId);
+    }
     if (filters?.farmId) {
       outflowSql += ' AND e.farm_id = ?';
       outflowArgs.push(filters.farmId);
-    }
-    if (filters?.cropId) {
-      outflowSql += ' AND EXISTS (SELECT 1 FROM expense_allocations ea WHERE ea.expense_id = e.id AND ea.crop_id = ?)';
-      outflowArgs.push(filters.cropId);
     }
     if (filters?.startDate) {
       outflowSql += ' AND p.payment_date >= ?';
@@ -1716,20 +1746,29 @@ export class FinanceService {
     const totalSalesPaidPaise = Number(salesPaidRes.rows[0].totalSalesPaidPaise);
 
     // 6. Total Paid on Expenses (Matching expense filters)
-    let expensesPaidSql = `
-      SELECT COALESCE(SUM(p.amount_paise), 0) as totalExpensesPaidPaise
-      FROM payments p
-      JOIN expenses e ON e.id = p.expense_id
-      WHERE p.group_id = ? AND e.is_active = 1
-    `;
-    const expensesPaidArgs: InValue[] = [groupId];
+    let expensesPaidSql: string;
+    const expensesPaidArgs: InValue[] = [];
+    if (filters?.cropId) {
+      expensesPaidSql = `
+        SELECT COALESCE(SUM(ROUND(CAST(p.amount_paise AS REAL) * ea.amount_paise / e.amount_paise)), 0) as totalExpensesPaidPaise
+        FROM payments p
+        JOIN expenses e ON e.id = p.expense_id
+        JOIN expense_allocations ea ON ea.expense_id = e.id AND ea.crop_id = ?
+        WHERE p.group_id = ? AND e.is_active = 1
+      `;
+      expensesPaidArgs.push(filters.cropId, groupId);
+    } else {
+      expensesPaidSql = `
+        SELECT COALESCE(SUM(p.amount_paise), 0) as totalExpensesPaidPaise
+        FROM payments p
+        JOIN expenses e ON e.id = p.expense_id
+        WHERE p.group_id = ? AND e.is_active = 1
+      `;
+      expensesPaidArgs.push(groupId);
+    }
     if (filters?.farmId) {
       expensesPaidSql += ' AND e.farm_id = ?';
       expensesPaidArgs.push(filters.farmId);
-    }
-    if (filters?.cropId) {
-      expensesPaidSql += ' AND EXISTS (SELECT 1 FROM expense_allocations ea WHERE ea.expense_id = e.id AND ea.crop_id = ?)';
-      expensesPaidArgs.push(filters.cropId);
     }
     if (filters?.startDate) {
       expensesPaidSql += ' AND e.expense_date >= ?';

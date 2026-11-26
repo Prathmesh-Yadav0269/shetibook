@@ -267,4 +267,62 @@ describe('ShetiBook Phase 4 - Offline Sync & Idempotency Integration Tests', () 
     });
     expect(Number(unauthCheck.rows[0].count)).toBe(0);
   });
+
+  it('4. Multi-operation batch rejected upon authorization revocation preserves server state integrity', async () => {
+    const client = getDatabaseClient();
+    const revokedOp1 = crypto.randomUUID();
+    const revokedOp2 = crypto.randomUUID();
+
+    // Removed member attempts multi-operation batch
+    const syncAttempt = await request(app)
+      .post(`/api/v1/groups/${groupId}/sync`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', memberCookie)
+      .send({
+        deviceId,
+        operations: [
+          {
+            clientOperationId: revokedOp1,
+            entityType: 'expense',
+            operation: 'create',
+            payload: {
+              farmId,
+              expenseCategoryId: 'cat_seeds',
+              amountPaise: 500000,
+              expenseDate: '2026-11-26',
+              description: 'गटबाहेर केलेला खर्च (Out of group expense)',
+            },
+            createdAt: '2026-11-26T12:00:00.000Z',
+          },
+          {
+            clientOperationId: revokedOp2,
+            entityType: 'harvest',
+            operation: 'create',
+            payload: {
+              farmId,
+              cropId,
+              harvestDate: '2026-11-26',
+              quantity: 50,
+              unit: 'quintal',
+            },
+            createdAt: '2026-11-26T12:00:00.000Z',
+          },
+        ],
+      });
+
+    expect(syncAttempt.status).toBe(403);
+
+    // Verify neither operation is recorded in sync_operations or domain tables
+    const syncOps = await client.execute({
+      sql: 'SELECT COUNT(*) as count FROM sync_operations WHERE client_operation_id IN (?, ?)',
+      args: [revokedOp1, revokedOp2],
+    });
+    expect(Number(syncOps.rows[0].count)).toBe(0);
+
+    const expCheck = await client.execute({
+      sql: 'SELECT COUNT(*) as count FROM expenses WHERE description = ?',
+      args: ['गटबाहेर केलेला खर्च (Out of group expense)'],
+    });
+    expect(Number(expCheck.rows[0].count)).toBe(0);
+  });
 });

@@ -2,7 +2,8 @@ import {
   enqueueOperation,
   getPendingOperations,
   removeOperations,
-  clearGroupQueue,
+  quarantineGroupOperations,
+  getQuarantinedOperations,
   QueuedSyncOperation,
 } from './indexedDb';
 import { api } from '../../../services/api/apiClient';
@@ -49,6 +50,23 @@ export const syncService = {
     }
   },
 
+  getQuarantinedCount: async (groupId: string): Promise<number> => {
+    try {
+      const quarantined = await getQuarantinedOperations(groupId);
+      return quarantined.length;
+    } catch {
+      return 0;
+    }
+  },
+
+  getQuarantinedList: async (groupId: string): Promise<QueuedSyncOperation[]> => {
+    try {
+      return await getQuarantinedOperations(groupId);
+    } catch {
+      return [];
+    }
+  },
+
   // Perform sync with server
   syncGroupOperations: async (groupId: string): Promise<SyncResult> => {
     const pending = await getPendingOperations(groupId);
@@ -75,15 +93,21 @@ export const syncService = {
       await removeOperations(succeededIds);
       return response;
     } catch (err: any) {
-      // Check for removed-member rejection
-      if (
-        err?.message?.includes('not an active member') ||
+      // Check for removed-member rejection / revoked authorization
+      const isUnauthorizedOrRevoked =
+        err?.status === 401 ||
+        err?.status === 403 ||
+        err?.code === 'FORBIDDEN_GROUP_ACCESS' ||
         err?.code === 'MEMBER_REMOVED' ||
-        err?.code === 'FORBIDDEN'
-      ) {
-        // Clear local queue for security & integrity
-        await clearGroupQueue(groupId);
-        throw new Error('तुम्ही या गटाचे सक्रिय सदस्य नसल्याने स्थानिक नोंदी रद्द केल्या गेल्या आहेत.');
+        err?.code === 'FORBIDDEN' ||
+        err?.message?.includes('not an active member');
+
+      if (isUnauthorizedOrRevoked) {
+        // Quarantine rejected operations: do NOT delete user-created records; preserve local data where safe
+        const reason =
+          'गट सदस्यत्व किंवा अधिकार संपुष्टात आल्यामुळे या स्थानिक नोंदी क्वारंटाइन (सुरक्षित राखून) ठेवल्या आहेत. (Operations quarantined: unauthorized to sync)';
+        await quarantineGroupOperations(groupId, reason);
+        throw new Error(reason);
       }
       throw err;
     }

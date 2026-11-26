@@ -294,4 +294,109 @@ describe('ShetiBook Phase 4 - Notifications & Reminders Integration Tests', () =
 
     expect(finalReminders.rows.length).toBe(0);
   });
+
+  it('7. Controlled timestamp verification: 2h -> 30m -> 1m exact schedule, pause immunity, and resume recalculation', async () => {
+    const client = getDatabaseClient();
+
+    // Create a new controlled activity
+    const newActRes = await request(app)
+      .post(`/api/v1/groups/${groupId}/activities`)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .set('Cookie', ownerCookie)
+      .send({
+        farmId,
+        plotId,
+        cropId,
+        activityTypeId: 'act_irrigation',
+        description: 'नियंत्रित वेळेची पाणी देणे नोंद',
+      });
+    const ctrlActId = newActRes.body.data.id;
+
+    // Controlled start timestamp: T0 = 2026-11-26T08:00:00.000Z
+    const t0 = new Date('2026-11-26T08:00:00.000Z');
+    const userRow = await client.execute({
+      sql: 'SELECT id FROM users WHERE phone_number = ?',
+      args: [ownerPhone],
+    });
+    const validActorId = String(userRow.rows[0].id);
+    await notificationService.scheduleActivityReminders(ctrlActId, groupId, validActorId, t0.toISOString());
+
+    const reminders = await client.execute({
+      sql: 'SELECT stage, due_at, status FROM activity_reminders WHERE activity_id = ? ORDER BY stage ASC',
+      args: [ctrlActId],
+    });
+
+    expect(reminders.rows.length).toBe(3);
+
+    // Stage 1: T0 + 2 hours (120 minutes) = 10:00:00.000Z
+    const stage1 = reminders.rows[0];
+    expect(Number(stage1.stage)).toBe(1);
+    expect(String(stage1.status)).toBe('pending');
+    expect(new Date(String(stage1.due_at)).getTime()).toBe(t0.getTime() + 120 * 60 * 1000);
+
+    // Stage 2: T0 + 2h 30m (+30 min after Stage 1) = 10:30:00.000Z
+    const stage2 = reminders.rows[1];
+    expect(Number(stage2.stage)).toBe(2);
+    expect(String(stage2.status)).toBe('pending');
+    expect(new Date(String(stage2.due_at)).getTime()).toBe(t0.getTime() + 150 * 60 * 1000);
+
+    // Stage 3: T0 + 2h 31m (+1 min after Stage 2) = 10:31:00.000Z
+    const stage3 = reminders.rows[2];
+    expect(Number(stage3.stage)).toBe(3);
+    expect(String(stage3.status)).toBe('pending');
+    expect(new Date(String(stage3.due_at)).getTime()).toBe(t0.getTime() + 151 * 60 * 1000);
+
+    // Pause activity at 09:00:00: All reminders must become 'paused'
+    await notificationService.pauseActivityReminders(ctrlActId);
+    const pausedCheck = await client.execute({
+      sql: 'SELECT status FROM activity_reminders WHERE activity_id = ?',
+      args: [ctrlActId],
+    });
+    expect(pausedCheck.rows.every((r) => String(r.status) === 'paused')).toBe(true);
+
+    // Resume activity at T1 = 2026-11-26T11:00:00.000Z (before Stage 1 was sent): full countdown resets from T1
+    const t1 = new Date('2026-11-26T11:00:00.000Z');
+    await notificationService.resumeActivityReminders(ctrlActId, t1.toISOString());
+    const resumedCheck = await client.execute({
+      sql: 'SELECT stage, due_at, status FROM activity_reminders WHERE activity_id = ? ORDER BY stage ASC',
+      args: [ctrlActId],
+    });
+    expect(resumedCheck.rows[0].status).toBe('pending');
+    expect(new Date(String(resumedCheck.rows[0].due_at)).getTime()).toBe(t1.getTime() + 120 * 60 * 1000); // 13:00:00
+    expect(new Date(String(resumedCheck.rows[1].due_at)).getTime()).toBe(t1.getTime() + 150 * 60 * 1000); // 13:30:00
+    expect(new Date(String(resumedCheck.rows[2].due_at)).getTime()).toBe(t1.getTime() + 151 * 60 * 1000); // 13:31:00
+
+    // Simulate Stage 1 being sent at 13:00:00
+    await client.execute({
+      sql: "UPDATE activity_reminders SET status = 'sent', sent_at = '2026-11-26T13:00:00.000Z' WHERE activity_id = ? AND stage = 1",
+      args: [ctrlActId],
+    });
+
+    // Pause activity again at 13:10:00
+    await notificationService.pauseActivityReminders(ctrlActId);
+    // Resume at T2 = 2026-11-26T14:00:00.000Z: Stage 2 should be T2 + 30m, Stage 3 = T2 + 31m
+    const t2 = new Date('2026-11-26T14:00:00.000Z');
+    await notificationService.resumeActivityReminders(ctrlActId, t2.toISOString());
+    const resumedAfterStage1 = await client.execute({
+      sql: 'SELECT stage, due_at, status FROM activity_reminders WHERE activity_id = ? ORDER BY stage ASC',
+      args: [ctrlActId],
+    });
+    // Stage 1 remains sent
+    expect(resumedAfterStage1.rows[0].status).toBe('sent');
+    // Stage 2 is due at 14:30:00 (T2 + 30 min)
+    expect(resumedAfterStage1.rows[1].status).toBe('pending');
+    expect(new Date(String(resumedAfterStage1.rows[1].due_at)).getTime()).toBe(t2.getTime() + 30 * 60 * 1000);
+    // Stage 3 is due at 14:31:00 (T2 + 31 min)
+    expect(resumedAfterStage1.rows[2].status).toBe('pending');
+    expect(new Date(String(resumedAfterStage1.rows[2].due_at)).getTime()).toBe(t2.getTime() + 31 * 60 * 1000);
+
+    // Cancel activity reminders
+    await notificationService.cancelActivityReminders(ctrlActId);
+    const cancelledCheck = await client.execute({
+      sql: "SELECT status FROM activity_reminders WHERE activity_id = ? AND status = 'cancelled'",
+      args: [ctrlActId],
+    });
+    // Stage 2 and 3 are now cancelled
+    expect(cancelledCheck.rows.length).toBe(2);
+  });
 });

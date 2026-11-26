@@ -1,19 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../../app/providers/AuthProvider';
 import { syncService } from '../services/syncService';
-import { WifiOff, RefreshCw } from 'lucide-react';
+import { WifiOff, RefreshCw, ShieldAlert } from 'lucide-react';
 
 export const OfflineBanner: React.FC = () => {
   const { selectedGroup } = useAuth();
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [pendingCount, setPendingCount] = useState<number>(0);
+  const [quarantinedCount, setQuarantinedCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
-  const checkPending = async () => {
+  const checkPendingAndQuarantine = async () => {
     if (!selectedGroup) return;
     const count = await syncService.getPendingCount(selectedGroup.id);
+    const qCount = await syncService.getQuarantinedCount(selectedGroup.id);
     setPendingCount(count);
+    setQuarantinedCount(qCount);
   };
 
   useEffect(() => {
@@ -30,8 +33,8 @@ export const OfflineBanner: React.FC = () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    checkPending();
-    const interval = setInterval(checkPending, 10000);
+    checkPendingAndQuarantine();
+    const interval = setInterval(checkPendingAndQuarantine, 10000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -46,7 +49,7 @@ export const OfflineBanner: React.FC = () => {
       setIsSyncing(true);
       setSyncStatusMsg('सिंक होत आहे...');
       const res = await syncService.syncGroupOperations(selectedGroup.id);
-      await checkPending();
+      await checkPendingAndQuarantine();
       if (res.processed > 0) {
         setSyncStatusMsg(`${res.processed} नोंदी यशस्वीरीत्या सिंक झाल्या!`);
         setTimeout(() => setSyncStatusMsg(null), 4000);
@@ -54,15 +57,16 @@ export const OfflineBanner: React.FC = () => {
         setSyncStatusMsg(null);
       }
     } catch (err: any) {
+      await checkPendingAndQuarantine();
       setSyncStatusMsg(err?.message || 'सिंक करताना त्रुटी आली.');
-      setTimeout(() => setSyncStatusMsg(null), 5000);
+      setTimeout(() => setSyncStatusMsg(null), 7000);
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Only render if offline OR has pending sync operations OR sync is in progress
-  if (isOnline && pendingCount === 0 && !syncStatusMsg) {
+  // Only render if offline OR has pending sync operations OR has quarantined records OR sync is in progress
+  if (isOnline && pendingCount === 0 && quarantinedCount === 0 && !syncStatusMsg) {
     return null;
   }
 
@@ -71,6 +75,8 @@ export const OfflineBanner: React.FC = () => {
       className={`w-full py-2 px-4 text-xs font-semibold flex items-center justify-between transition-colors ${
         !isOnline
           ? 'bg-amber-500 text-white'
+          : quarantinedCount > 0
+          ? 'bg-rose-700 text-white'
           : pendingCount > 0
           ? 'bg-blue-600 text-white'
           : 'bg-emerald-600 text-white'
@@ -84,6 +90,13 @@ export const OfflineBanner: React.FC = () => {
               तुम्ही ऑफलाइन आहात. सर्व नवीन नोंदी सुरक्षित स्थानिक मेमरीमध्ये साठवल्या जात आहेत.
             </span>
           </>
+        ) : quarantinedCount > 0 ? (
+          <>
+            <ShieldAlert className="w-4 h-4 flex-shrink-0 animate-pulse text-amber-200" />
+            <span>
+              सावधान: गट अधिकार नसल्यामुळे {quarantinedCount} स्थानिक नोंदी क्वारंटाइन (सुरक्षित राखून) ठेवल्या आहेत. या नोंदी डिलीट न करता स्थानिक मेमरीत सुरक्षित आहेत, पण अधिकार असल्याशिवाय अपलोड होणार नाहीत.
+            </span>
+          </>
         ) : (
           <>
             <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -94,7 +107,7 @@ export const OfflineBanner: React.FC = () => {
         )}
       </div>
 
-      {isOnline && pendingCount > 0 && (
+      {isOnline && pendingCount > 0 && quarantinedCount === 0 && (
         <button
           type="button"
           disabled={isSyncing}

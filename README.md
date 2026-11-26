@@ -52,7 +52,7 @@ ShetiBook is developed under a strict, phased engineering lifecycle:
 | **Frontend** | React 18, Vite 6, TypeScript 5, Tailwind CSS 3, React Router 7, TanStack Query 5, React Hook Form, Zod, i18next, Lucide React |
 | **Backend** | Node.js (v22+), Express 4, TypeScript 5, Zod, Argon2id, Cookie-Parser, Helmet, Express-Rate-Limit |
 | **Database** | Turso / SQLite relational database via official `@libsql/client` (Foreign Keys enabled) |
-| **Testing** | Vitest 3, Supertest 7 (96 automated tests across 10 suites) |
+| **Testing** | Vitest 3, Supertest 7 (99 automated tests across 10 suites) |
 | **Version Control** | Git, GitHub (`main` branch) |
 
 ---
@@ -108,7 +108,7 @@ shetibook/
 │   │   ├── validators/         # Zod schemas for auth, family, agriculture, finance
 │   │   ├── app.ts              # Express application setup
 │   │   └── server.ts           # Server bootstrap & migration auto-run
-│   ├── tests/                  # Automated integration tests (96 tests across 10 suites)
+│   ├── tests/                  # Automated integration tests (99 tests across 10 suites)
 │   │   ├── auth.test.ts
 │   │   ├── family.test.ts
 │   │   ├── area.test.ts

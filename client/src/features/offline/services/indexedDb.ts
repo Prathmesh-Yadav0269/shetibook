@@ -8,8 +8,10 @@ export interface QueuedSyncOperation {
   action: 'create' | 'update' | 'delete' | 'transition';
   payload: Record<string, any>;
   createdAt: string;
-  status: 'pending' | 'syncing' | 'failed';
+  status: 'pending' | 'syncing' | 'failed' | 'quarantined';
   errorMessage?: string;
+  quarantinedAt?: string;
+  quarantineReason?: string;
 }
 
 let dbInstance: IDBDatabase | null = null;
@@ -90,6 +92,52 @@ export const removeOperations = async (ids: string[]): Promise<void> => {
   });
 };
 
+export const quarantineGroupOperations = async (
+  groupId: string,
+  reason: string
+): Promise<number> => {
+  const db = await initIndexedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sync_queue', 'readwrite');
+    const store = tx.objectStore('sync_queue');
+    const index = store.index('groupId');
+    const req = index.getAll(groupId);
+
+    let quarantinedCount = 0;
+    req.onsuccess = () => {
+      const items: QueuedSyncOperation[] = req.result || [];
+      const now = new Date().toISOString();
+      for (const item of items) {
+        if (item.status === 'pending' || item.status === 'failed' || item.status === 'syncing') {
+          item.status = 'quarantined';
+          item.quarantineReason = reason;
+          item.quarantinedAt = now;
+          store.put(item);
+          quarantinedCount++;
+        }
+      }
+    };
+
+    tx.oncomplete = () => resolve(quarantinedCount);
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+export const getQuarantinedOperations = async (groupId: string): Promise<QueuedSyncOperation[]> => {
+  const db = await initIndexedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sync_queue', 'readonly');
+    const store = tx.objectStore('sync_queue');
+    const index = store.index('groupId');
+    const req = index.getAll(groupId);
+    req.onsuccess = () => {
+      const all: QueuedSyncOperation[] = req.result || [];
+      resolve(all.filter((item) => item.status === 'quarantined'));
+    };
+    req.onerror = () => reject(req.error);
+  });
+};
+
 export const clearGroupQueue = async (groupId: string): Promise<void> => {
   const db = await initIndexedDb();
   return new Promise((resolve, reject) => {
@@ -104,4 +152,19 @@ export const clearGroupQueue = async (groupId: string): Promise<void> => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+};
+
+export const clearCachedRecords = async (): Promise<void> => {
+  try {
+    const db = await initIndexedDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('cached_records', 'readwrite');
+      const store = tx.objectStore('cached_records');
+      const req = store.clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // If indexedDb not available or fails, silently resolve
+  }
 };

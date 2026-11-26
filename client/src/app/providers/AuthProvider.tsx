@@ -60,6 +60,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.post('/auth/logout');
     } catch {}
+    try {
+      // Clear non-persistent local caches on logout for data privacy
+      const { clearCachedRecords } = await import('../../features/offline/services/indexedDb');
+      await clearCachedRecords();
+    } catch {}
     setUser(null);
     setGroups([]);
     setSelectedGroup(null);
